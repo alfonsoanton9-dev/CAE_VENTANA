@@ -8,7 +8,7 @@ Aplicación móvil (iOS / Android) y web para gestionar **expedientes de Certifi
 
 | Expediente y desglose | Ventana | Ajustes |
 | --- | --- | --- |
-| ![Expediente](docs/capturas/05-expediente-con-ventanas.png) | ![Ventana](docs/capturas/04-ventana-formulario.png) | ![Ajustes](docs/capturas/07-ajustes.png) |
+| ![Expediente](docs/capturas/05-expediente-con-ventanas.png) | ![Zona automática](docs/capturas/08-expediente-zona-automatica.png) | ![Ajustes zonas CTE](docs/capturas/09-ajustes-zonas-cte.png) |
 
 ## Funcionalidades
 
