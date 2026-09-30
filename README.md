@@ -96,4 +96,10 @@ La duración indicativa **Di** se registra como dato administrativo y, conforme 
 
 ## Supuestos pendientes de confirmar
 
-Consulta el resumen entregado con esta versión; en resumen: equivalencia 1 CAE = 1 kWh de ahorro anual, tratamiento de Di, clases de permeabilidad UNE-EN 12207 distintas de la 3, unidades de la transmitancia del cajón, ahorros negativos, y obtención automática de la zona climática (no incluida: la tabla a-Anejo B del CTE no forma parte de las fichas).
+1. **1 CAE = 1 kWh**: la ficha da el ahorro en kWh/año y no define la conversión a CAE; se asume 1 CAE = 1 kWh de ahorro anual (ajustable). Si los CAE deben computarse sobre el ahorro acumulado en la vida útil, se puede activar “multiplicar por Di”.
+2. **Di** no entra en el cálculo (así lo indica la nota 4 de la ficha).
+3. **Clases de permeabilidad**: la ficha sólo cita “Clase 3” (≤ 9 m³/h·m²) y ≤ 27 m³/h·m²; el resto de equivalencias (clase 1 ≤ 50, clase 2 ≤ 27, clase 4 ≤ 3) proceden de la UNE-EN 12207 y son editables.
+4. **Cajón de persiana**: la ficha escribe “inferior a 1,5 W/m2”; se interpreta como W/m²·K.
+5. **Ahorros negativos** (Uhf > Uhi): se aplica la fórmula literal (restan) y se avisa; hay un ajuste para limitarlos a 0.
+6. **Unidades**: se permite registrar varias ventanas idénticas en una fila (S × unidades).
+7. **Zona climática**: se selecciona manualmente; la tabla a-Anejo B del CTE (provincia + altitud) no forma parte de las fichas y no está incluida.
