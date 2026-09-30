@@ -30,8 +30,12 @@ export interface DesgloseVentana {
   deltaU?: number;
   g: number | null;
   fp: number;
-  /** AE_hueco antes de aplicar Fp: (Uhi − Uhf)·S·G. */
+  /** AE_hueco antes de aplicar Fp: (Uhi − Uhf)·S·G (ya forzado a 0 si procede). */
   aeBruto: number | null;
+  /** Valor calculado por la fórmula antes de forzar a 0 los ahorros negativos. */
+  aeFormula: number | null;
+  /** El ahorro era negativo y se ha forzado a 0 kWh según Ajustes. */
+  forzadoACero: boolean;
   /** AE_hueco = Fp · (Uhi − Uhf)·S·G  [kWh/año]. */
   ae: number | null;
   /** Falta algún dato para calcular. */
@@ -83,9 +87,13 @@ export function comprobarVentana(v: Ventana, e: Expediente, p: Parametros): Avis
     avisos.push({ gravedad: 'error', mensaje: 'Indica la transmitancia nueva Uhf (W/m²·K).' });
 
   if (v.anterior.transmitancia !== undefined && nueva.transmitancia !== undefined && nueva.transmitancia >= v.anterior.transmitancia) {
+    const estrictamenteNegativo = nueva.transmitancia > v.anterior.transmitancia;
     avisos.push({
       gravedad: 'aviso',
-      mensaje: 'La transmitancia nueva (Uhf) no es menor que la anterior (Uhi): el ahorro de esta ventana es nulo o negativo.',
+      mensaje:
+        p.ignorarAhorrosNegativos && estrictamenteNegativo
+          ? 'La transmitancia nueva (Uhf) es mayor que la anterior (Uhi): el ahorro sería negativo y se computa como 0 kWh (Ajustes → ignorar ahorros negativos).'
+          : 'La transmitancia nueva (Uhf) no es menor que la anterior (Uhi): el ahorro de esta ventana es nulo o negativo.',
     });
   }
 
@@ -135,10 +143,16 @@ export function desglosarVentana(v: Ventana, e: Expediente, p: Parametros): Desg
   const uhf = v.nueva.transmitancia;
   const completa = S !== undefined && S > 0 && uhi !== undefined && uhf !== undefined && g !== null;
   let aeBruto: number | null = null;
+  let aeFormula: number | null = null;
   let ae: number | null = null;
+  let forzadoACero = false;
   if (completa) {
-    aeBruto = ahorroVentana(uhi, uhf, S, g);
-    if (p.ignorarAhorrosNegativos && aeBruto < 0) aeBruto = 0;
+    aeFormula = ahorroVentana(uhi, uhf, S, g);
+    aeBruto = aeFormula;
+    if (p.ignorarAhorrosNegativos && aeBruto < 0) {
+      aeBruto = 0;
+      forzadoACero = true;
+    }
     ae = fp * aeBruto;
   }
   return {
@@ -153,6 +167,8 @@ export function desglosarVentana(v: Ventana, e: Expediente, p: Parametros): Desg
     g,
     fp,
     aeBruto,
+    aeFormula,
+    forzadoACero,
     ae,
     completa,
     avisos: comprobarVentana(v, e, p),
@@ -168,6 +184,9 @@ export function comprobarExpediente(e: Expediente, p: Parametros, porcentaje: nu
       gravedad: 'error',
       mensaje: `La zona ${e.zonaInvierno}${e.zonaVerano} no tiene valor de G en el Anexo II (ni en Ajustes).`,
     });
+  }
+  if (e.ubicacion === 'canarias') {
+    avisos.push({ gravedad: 'error', mensaje: 'La ficha RES070 no aplica en Canarias: sólo Península, Illes Balears, Ceuta y Melilla.' });
   }
   if (!e.edificioExistente) avisos.push({ gravedad: 'error', mensaje: 'La ficha RES070 aplica únicamente a edificios existentes.' });
   if (!e.usoResidencialPrivado) avisos.push({ gravedad: 'error', mensaje: 'La ficha RES070 aplica únicamente a edificios de uso residencial privado.' });
@@ -195,6 +214,13 @@ export function calcularExpediente(e: Expediente, p: Parametros): ResultadoExped
   const multiplicadorDuracion = p.multiplicarPorDuracion && e.duracionAnios !== undefined && e.duracionAnios > 0 ? e.duracionAnios : 1;
   const cae = (aeTotal * multiplicadorDuracion) / p.kwhPorCae;
   const avisosExpediente = comprobarExpediente(e, p, porcentajeEnvolvente);
+  const negativos = ventanas.filter((d) => d.forzadoACero).length;
+  if (negativos > 0) {
+    avisosExpediente.push({
+      gravedad: 'aviso',
+      mensaje: `${negativos} ventana${negativos > 1 ? 's tienen' : ' tiene'} ahorro negativo y se ${negativos > 1 ? 'computan' : 'computa'} como 0 kWh.`,
+    });
+  }
   const cumple = avisosExpediente.every((a) => a.gravedad !== 'error') && ventanas.every((d) => d.avisos.every((a) => a.gravedad !== 'error'));
   return {
     fp,

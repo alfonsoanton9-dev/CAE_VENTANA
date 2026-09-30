@@ -2,6 +2,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { calcularExpediente } from '@/domain/calculo';
+import { deducirZona } from '@/domain/clima';
 import { formatoNumero, isoAFecha } from '@/domain/formato';
 import type { DocumentacionChecklist } from '@/domain/tipos';
 import { UBICACIONES } from '@/domain/tipos';
@@ -43,6 +44,8 @@ export default function DetalleExpediente() {
 
   const docsHechos = DOCUMENTOS.filter((d) => exp.documentacion[d.clave]).length;
   const ubic = UBICACIONES.find((u) => u.valor === exp.ubicacion)?.etiqueta;
+  const zonaTabla = deducirZona(parametros.zonasClimaticas, exp.provinciaCodigo, exp.altitudM);
+  const oc = exp.origenClima;
 
   return (
     <Pantalla>
@@ -155,7 +158,25 @@ export default function DetalleExpediente() {
         <Fila etiqueta="Referencia catastral" valor={exp.referenciaCatastral || '—'} />
         <Fila etiqueta="Inmueble" valor={[exp.direccion, exp.codigoPostal, exp.municipio, exp.provincia].filter(Boolean).join(', ') || '—'} />
         <Fila etiqueta="Ámbito" valor={ubic ?? '—'} />
+        <Fila
+          etiqueta="Zona climática"
+          valor={exp.zonaInvierno && exp.zonaVerano ? `${exp.zonaInvierno}${exp.zonaVerano}${r.g !== null ? ` (G = ${formatoNumero(r.g, 0)})` : ''}` : '—'}
+        />
+        {oc?.zona === 'automatica' && zonaTabla ? (
+          <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Zona automática: {zonaTabla.descripcion}</Text>
+        ) : oc?.zona === 'manual' ? (
+          <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Zona elegida a mano{zonaTabla ? ` (la tabla daría ${zonaTabla.texto})` : ''}.</Text>
+        ) : null}
+        {exp.ubicacion === 'canarias' ? (
+          <Text style={{ color: color.aviso, fontSize: 12.5 }}>Canarias queda fuera del ámbito de la ficha RES070 (zonas α sin G en el Anexo II).</Text>
+        ) : null}
         <Fila etiqueta="Altitud" valor={exp.altitudM === undefined ? '—' : `${formatoNumero(exp.altitudM, 0)} m`} />
+        {oc?.altitudDetalle ? <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Origen altitud: {oc.altitudDetalle}</Text> : null}
+        {oc?.provincia === 'codigo-postal' ? (
+          <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Provincia deducida del código postal.</Text>
+        ) : oc?.provincia === 'manual' ? (
+          <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Provincia elegida a mano.</Text>
+        ) : null}
         <Fila etiqueta="Envolvente térmica final" valor={exp.superficieEnvolventeM2 === undefined ? '—' : `${formatoNumero(exp.superficieEnvolventeM2)} m²`} />
         <Fila etiqueta="Cliente" valor={[exp.cliente.nombre, exp.cliente.nifNie].filter(Boolean).join(' · ') || '—'} />
         <Fila etiqueta="Contacto" valor={[exp.cliente.telefono, exp.cliente.email].filter(Boolean).join(' · ') || '—'} />

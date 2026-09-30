@@ -1,3 +1,4 @@
+import { normalizarTablaZonas, tablaZonasOficial, type TablaZonas } from './zonasClimaticas';
 import { ZONAS_INVIERNO, ZONAS_VERANO, type ClasePermeabilidad, type ZonaInvierno, type ZonaVerano } from './tipos';
 
 /**
@@ -6,7 +7,13 @@ import { ZONAS_INVIERNO, ZONAS_VERANO, type ClasePermeabilidad, type ZonaInviern
  */
 export type TablaG = Record<ZonaInvierno, Record<ZonaVerano, number | null>>;
 
+export const VERSION_PARAMETROS = 2;
+
 export interface Parametros {
+  /** Versión del esquema de ajustes (para migrar valores por defecto). */
+  version: number;
+  /** Tabla a-Anejo B del CTE DB-HE: zona climática por provincia y altitud. */
+  zonasClimaticas: TablaZonas;
   /** Fp: factor de ponderación (ficha RES070, apartado 3). */
   fp: number;
   /** Coeficiente G por zona climática (Anexo II). */
@@ -27,7 +34,7 @@ export interface Parametros {
   kwhPorCae: number;
   /** Si se activa, CAE = ahorro anual × Di. Por defecto la ficha no usa Di en el cálculo. */
   multiplicarPorDuracion: boolean;
-  /** Si se activa, las ventanas con ahorro negativo cuentan como 0 kWh. */
+  /** Si se activa (por defecto), las ventanas con ahorro negativo cuentan como 0 kWh. */
   ignorarAhorrosNegativos: boolean;
 }
 
@@ -61,6 +68,8 @@ export function tablaGOficial(): TablaG {
 
 export function parametrosPorDefecto(): Parametros {
   return {
+    version: VERSION_PARAMETROS,
+    zonasClimaticas: tablaZonasOficial(),
     fp: 1,
     g: tablaGOficial(),
     umbralEnvolventePct: 25,
@@ -71,7 +80,7 @@ export function parametrosPorDefecto(): Parametros {
     transmitanciaMaxCajon: 1.5,
     kwhPorCae: 1,
     multiplicarPorDuracion: false,
-    ignorarAhorrosNegativos: false,
+    ignorarAhorrosNegativos: true,
   };
 }
 
@@ -92,7 +101,10 @@ export function normalizarParametros(guardados: unknown): Parametros {
   ZONAS_INVIERNO.forEach((z) => (perm[z] = num(s.permeabilidadMaxPorZona?.[z], perm[z])));
   const clases = { ...base.permeabilidadPorClase };
   ([1, 2, 3, 4] as const).forEach((c) => (clases[c] = num(s.permeabilidadPorClase?.[c], clases[c])));
+  const versionGuardada = typeof s.version === 'number' ? s.version : 1;
   return {
+    version: VERSION_PARAMETROS,
+    zonasClimaticas: normalizarTablaZonas(s.zonasClimaticas),
     fp: num(s.fp, base.fp),
     g: g2,
     umbralEnvolventePct: num(s.umbralEnvolventePct, base.umbralEnvolventePct),
@@ -103,7 +115,9 @@ export function normalizarParametros(guardados: unknown): Parametros {
     transmitanciaMaxCajon: num(s.transmitanciaMaxCajon, base.transmitanciaMaxCajon),
     kwhPorCae: num(s.kwhPorCae, base.kwhPorCae) > 0 ? num(s.kwhPorCae, base.kwhPorCae) : base.kwhPorCae,
     multiplicarPorDuracion: typeof s.multiplicarPorDuracion === 'boolean' ? s.multiplicarPorDuracion : base.multiplicarPorDuracion,
-    ignorarAhorrosNegativos: typeof s.ignorarAhorrosNegativos === 'boolean' ? s.ignorarAhorrosNegativos : base.ignorarAhorrosNegativos,
+    // v1 guardaba `false` como valor por defecto: se migra al nuevo por defecto (`true`).
+    ignorarAhorrosNegativos:
+      versionGuardada >= 2 && typeof s.ignorarAhorrosNegativos === 'boolean' ? s.ignorarAhorrosNegativos : base.ignorarAhorrosNegativos,
   };
 }
 

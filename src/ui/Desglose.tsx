@@ -23,6 +23,13 @@ export function DesgloseLineaVentana({ d }: { d: DesgloseVentana }) {
           ? `AE = ${formatoNumero(d.fp, 2)} × (${formatoNumero(d.uhi)} − ${formatoNumero(d.uhf)}) × ${formatoNumero(d.superficie)} × ${formatoNumero(d.g, 0)}`
           : 'AE = Fp × (Uhi − Uhf) × S × G'}
       </Text>
+      {d.forzadoACero ? (
+        <View style={{ padding: 10, borderRadius: 8, backgroundColor: color.avisoSuave }}>
+          <Text style={{ color: color.aviso, fontSize: 13 }}>
+            El resultado de la fórmula es negativo ({formatoNumero(d.aeFormula)} kWh/año) y se computa como 0 kWh.
+          </Text>
+        </View>
+      ) : null}
       <Fila etiqueta="AE de la ventana" valor={d.ae === null ? 'Datos incompletos' : `${formatoNumero(d.ae)} kWh/año`} fuerte />
     </View>
   );

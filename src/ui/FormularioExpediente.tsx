@@ -1,13 +1,12 @@
 import { useState } from 'react';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { formatoNumero } from '@/domain/formato';
-import { obtenerG } from '@/domain/parametros';
-import { UBICACIONES, ZONAS_INVIERNO, ZONAS_VERANO, type ExpedienteBorrador } from '@/domain/tipos';
+import { UBICACIONES, type ExpedienteBorrador } from '@/domain/tipos';
 import { useAlmacen } from '@/store/almacen';
 import { Boton, CampoFecha, CampoNumero, CampoTexto, Interruptor, Pantalla, Selector, Seccion } from './componentes';
 import { ESTADOS } from './estado';
+import { SeccionClima } from './SeccionClima';
 import { color } from './tema';
-import { View } from 'react-native';
 
 export function FormularioExpediente({
   inicial,
@@ -25,7 +24,6 @@ export function FormularioExpediente({
   const [intentado, setIntentado] = useState(false);
   const set = <K extends keyof ExpedienteBorrador>(k: K, v: ExpedienteBorrador[K]) => setD((x) => ({ ...x, [k]: v }));
 
-  const g = obtenerG(parametros, d.zonaInvierno, d.zonaVerano);
   const falta = d.referencia.trim() === '';
 
   const guardar = () => {
@@ -80,20 +78,12 @@ export function FormularioExpediente({
           <CampoTexto etiqueta="Código postal" valor={d.codigoPostal} onChange={(v) => set('codigoPostal', v)} teclado="numeric" />
           <CampoTexto etiqueta="Municipio" valor={d.municipio} onChange={(v) => set('municipio', v)} />
         </Fila2>
-        <CampoTexto etiqueta="Provincia" valor={d.provincia} onChange={(v) => set('provincia', v)} />
         <Selector
           etiqueta="Ámbito territorial"
           ayuda="La ficha sólo aplica en la Península, las Illes Balears, Ceuta y Melilla."
           opciones={UBICACIONES}
           valor={d.ubicacion}
           onChange={(v) => v && set('ubicacion', v)}
-        />
-        <CampoNumero
-          etiqueta="Altitud sobre el nivel del mar"
-          unidad="m"
-          valor={d.altitudM}
-          onChange={(v) => set('altitudM', v)}
-          ayuda="Con la provincia y la altitud se obtiene la zona climática en la tabla a-Anejo B del CTE DB HE."
         />
         <Interruptor etiqueta="Edificio existente" valor={d.edificioExistente} onChange={(v) => set('edificioExistente', v)} />
         <Interruptor
@@ -111,31 +101,7 @@ export function FormularioExpediente({
         />
       </Seccion>
 
-      <Seccion titulo="Zona climática" ayuda="Zonas del Anejo B del CTE DB HE. Determinan el coeficiente G del Anexo II.">
-        <Selector
-          etiqueta="Zona climática de invierno (ZCI)"
-          opciones={ZONAS_INVIERNO.map((z) => ({ valor: z, etiqueta: z }))}
-          valor={d.zonaInvierno}
-          onChange={(v) => set('zonaInvierno', v)}
-          permitirVacio
-        />
-        <Selector
-          etiqueta="Zona climática de verano (ZCV)"
-          opciones={ZONAS_VERANO.map((z) => ({ valor: z, etiqueta: String(z) }))}
-          valor={d.zonaVerano}
-          onChange={(v) => set('zonaVerano', v)}
-          permitirVacio
-        />
-        <View style={{ padding: 12, borderRadius: 10, backgroundColor: g !== null ? color.primarioSuave : color.avisoSuave }}>
-          <Text style={{ color: g !== null ? color.primario : color.aviso, fontWeight: '600' }}>
-            {!d.zonaInvierno || !d.zonaVerano
-              ? 'Selecciona ZCI y ZCV para obtener G.'
-              : g !== null
-                ? `Zona ${d.zonaInvierno}${d.zonaVerano}: G = ${formatoNumero(g, 0)} miles de horas·K/año`
-                : `La combinación ${d.zonaInvierno}${d.zonaVerano} no tiene valor de G en el Anexo II.`}
-          </Text>
-        </View>
-      </Seccion>
+      <SeccionClima d={d} setD={setD} parametros={parametros} inicialTieneAltitud={inicial.altitudM !== undefined} />
 
       <Seccion titulo="Cliente / propietario">
         <CampoTexto etiqueta="Nombre o razón social" valor={d.cliente.nombre} onChange={(v) => set('cliente', { ...d.cliente, nombre: v })} />

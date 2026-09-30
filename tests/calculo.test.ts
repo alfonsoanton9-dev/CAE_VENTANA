@@ -119,11 +119,20 @@ describe('Fórmula AE = Fp · Σ (Uhi − Uhf) · S · G', () => {
     expect(r.aeTotal).toBe(0);
   });
 
-  it('ahorro negativo: se resta salvo que se ignore en ajustes', () => {
+  it('ahorro negativo: por defecto se fuerza a 0 con aviso; si se desactiva, resta', () => {
     const e = expediente('C', 3, [ventana(2, 3, 1)]);
-    expect(calcularExpediente(e, parametrosPorDefecto()).aeTotal).toBeCloseTo(-46, 9);
-    expect(calcularExpediente(e, { ...parametrosPorDefecto(), ignorarAhorrosNegativos: true }).aeTotal).toBe(0);
-    expect(desglosarVentana(e.ventanas[0], e, parametrosPorDefecto()).avisos.some((a) => a.gravedad === 'aviso')).toBe(true);
+    const pDef = parametrosPorDefecto();
+    expect(pDef.ignorarAhorrosNegativos).toBe(true);
+    expect(calcularExpediente(e, pDef).aeTotal).toBe(0);
+    expect(desglosarVentana(e.ventanas[0], e, pDef).forzadoACero).toBe(true);
+    expect(calcularExpediente(e, { ...pDef, ignorarAhorrosNegativos: false }).aeTotal).toBeCloseTo(-46, 9);
+  });
+
+  it('Di no interviene por defecto (multiplicarPorDuracion desactivado)', () => {
+    const e = expediente('C', 3, [ventana(5.7, 1.4, 2)], { duracionAnios: 10 });
+    const r = calcularExpediente(e, parametrosPorDefecto());
+    expect(r.multiplicadorDuracion).toBe(1);
+    expect(r.cae).toBeCloseTo(r.aeTotal, 9);
   });
 });
 

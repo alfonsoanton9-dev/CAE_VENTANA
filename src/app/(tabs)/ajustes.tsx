@@ -3,7 +3,9 @@ import { Text, View } from 'react-native';
 import { normalizarParametros, parametrosPorDefecto, type Parametros } from '@/domain/parametros';
 import { ZONAS_INVIERNO, ZONAS_VERANO } from '@/domain/tipos';
 import { useAlmacen } from '@/store/almacen';
+import { tablaZonasOficial } from '@/domain/zonasClimaticas';
 import { Boton, CampoNumero, CampoNumeroCompacto, Cargando, Interruptor, Pantalla, Seccion, useConfirmar } from '@/ui/componentes';
+import { EditorZonasClimaticas, validarTablaZonas } from '@/ui/EditorZonasClimaticas';
 import { color } from '@/ui/tema';
 
 export default function Ajustes() {
@@ -37,6 +39,11 @@ export default function Ajustes() {
     );
     if (!ok || d.kwhPorCae <= 0) {
       setMensaje({ tipo: 'error', texto: 'Completa todos los parámetros con valores numéricos válidos (los kWh por CAE deben ser mayores que 0).' });
+      return;
+    }
+    const errZonas = validarTablaZonas(d.zonasClimaticas);
+    if (errZonas) {
+      setMensaje({ tipo: 'error', texto: `Tabla de zonas climáticas: ${errZonas}` });
       return;
     }
     const limpio = normalizarParametros({
@@ -85,6 +92,20 @@ export default function Ajustes() {
       ) : null}
 
       <Seccion
+        titulo="Zonas climáticas (CTE DB-HE, tabla a-Anejo B)"
+        ayuda="Provincia y altitud del emplazamiento → zona (invierno A–E y verano 1–4). Los expedientes deducen la provincia del código postal y la altitud de la dirección; aquí puedes ajustar la tabla oficial."
+      >
+        <EditorZonasClimaticas tabla={d.zonasClimaticas} onChange={(t) => editar((p) => (p.zonasClimaticas = t))} />
+        <Boton
+          titulo="Restaurar tabla de zonas oficial"
+          variante="secundario"
+          icono="refresh"
+          onPress={() => editar((p) => (p.zonasClimaticas = tablaZonasOficial()))}
+          deshabilitado={JSON.stringify(d.zonasClimaticas) === JSON.stringify(oficiales.zonasClimaticas)}
+        />
+      </Seccion>
+
+      <Seccion
         titulo="Coeficiente G (Anexo II)"
         ayuda="Miles de horas·K/año según zona climática de invierno (columnas) y de verano (filas). Deja una celda vacía para indicar que la combinación no está definida."
       >
@@ -128,7 +149,7 @@ export default function Ajustes() {
         />
         <Interruptor
           etiqueta="Ignorar ahorros negativos por ventana"
-          ayuda="Si Uhf > Uhi, la ventana aporta 0 kWh en lugar de restar."
+          ayuda="Activado por defecto: si Uhf > Uhi, la ventana aporta 0 kWh y se muestra un aviso (en lugar de restar del total)."
           valor={d.ignorarAhorrosNegativos}
           onChange={(x) => editar((p) => (p.ignorarAhorrosNegativos = x))}
         />

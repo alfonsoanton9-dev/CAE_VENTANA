@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { duplicarExpediente, duplicarVentana, nuevoExpediente } from '@/domain/fabrica';
+import { duplicarExpediente, duplicarVentana, normalizarExpediente, nuevoExpediente } from '@/domain/fabrica';
 import { normalizarParametros, parametrosPorDefecto, type Parametros } from '@/domain/parametros';
 import type { Expediente, ExpedienteBorrador, Ventana } from '@/domain/tipos';
 
@@ -38,8 +38,9 @@ export function AlmacenProvider({ children }: { children: React.ReactNode }) {
         if (rawExp) {
           const lista = JSON.parse(rawExp);
           if (Array.isArray(lista)) {
-            expedientesRef.current = lista;
-            setExpedientes(lista);
+            const normalizada = lista.map(normalizarExpediente);
+            expedientesRef.current = normalizada;
+            setExpedientes(normalizada);
           }
         }
         if (rawAjustes) setParametros(normalizarParametros(JSON.parse(rawAjustes)));

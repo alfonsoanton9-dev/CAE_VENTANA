@@ -13,8 +13,12 @@ export function borradorVacio(): ExpedienteBorrador {
     codigoPostal: '',
     municipio: '',
     provincia: '',
+    provinciaCodigo: '',
     ubicacion: 'peninsula',
     altitudM: undefined,
+    latitud: undefined,
+    longitud: undefined,
+    origenClima: { provincia: '', altitud: '', altitudDetalle: '', zona: 'automatica' },
     zonaInvierno: undefined,
     zonaVerano: undefined,
     edificioExistente: true,
@@ -88,4 +92,19 @@ export function duplicarExpediente(e: Expediente): Expediente {
   copia.creadoEn = ahora;
   copia.actualizadoEn = ahora;
   return copia;
+}
+
+/** Completa expedientes guardados con versiones anteriores de la app. */
+export function normalizarExpediente(e: Expediente): Expediente {
+  const zonaManual = e.zonaInvierno !== undefined && e.zonaVerano !== undefined;
+  return {
+    ...e,
+    provinciaCodigo: e.provinciaCodigo ?? '',
+    origenClima: e.origenClima ?? {
+      provincia: e.provincia ? 'manual' : '',
+      altitud: e.altitudM !== undefined ? 'manual' : '',
+      altitudDetalle: '',
+      zona: zonaManual ? 'manual' : 'automatica',
+    },
+  };
 }

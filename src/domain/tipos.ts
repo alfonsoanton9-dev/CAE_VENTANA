@@ -9,6 +9,7 @@ export const UBICACIONES = [
   { valor: 'baleares', etiqueta: 'Illes Balears' },
   { valor: 'ceuta', etiqueta: 'Ceuta' },
   { valor: 'melilla', etiqueta: 'Melilla' },
+  { valor: 'canarias', etiqueta: 'Canarias (fuera de la ficha)' },
 ] as const;
 export type Ubicacion = (typeof UBICACIONES)[number]['valor'];
 
@@ -33,6 +34,19 @@ export type Orientacion = (typeof ORIENTACIONES)[number];
 
 /** Clase de permeabilidad al aire según UNE-EN 12207:2016 (0 = sin clasificar). */
 export type ClasePermeabilidad = 0 | 1 | 2 | 3 | 4;
+
+export type OrigenProvincia = 'codigo-postal' | 'manual' | '';
+export type OrigenAltitud = 'geocodificacion' | 'centro-cp' | 'capital' | 'manual' | '';
+export type OrigenZona = 'automatica' | 'manual';
+
+/** Trazabilidad de los datos que se deducen automáticamente. */
+export interface OrigenClima {
+  provincia: OrigenProvincia;
+  altitud: OrigenAltitud;
+  /** Texto libre: servicios usados, coordenadas, fecha… */
+  altitudDetalle: string;
+  zona: OrigenZona;
+}
 
 export interface Cliente {
   nombre: string;
@@ -70,8 +84,13 @@ export interface Expediente {
   codigoPostal: string;
   municipio: string;
   provincia: string;
+  /** Código de provincia (dos primeros dígitos del código postal); clave de la tabla de zonas. */
+  provinciaCodigo: string;
   ubicacion: Ubicacion;
   altitudM?: number;
+  latitud?: number;
+  longitud?: number;
+  origenClima: OrigenClima;
   zonaInvierno?: ZonaInvierno;
   zonaVerano?: ZonaVerano;
   edificioExistente: boolean;

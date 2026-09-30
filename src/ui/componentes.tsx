@@ -503,3 +503,73 @@ export function CampoNumeroCompacto({
     />
   );
 }
+
+export function SelectorLista({
+  etiqueta,
+  valorTexto,
+  opciones,
+  onSeleccionar,
+  placeholder,
+}: {
+  etiqueta: string;
+  valorTexto: string;
+  opciones: Array<{ clave: string; texto: string }>;
+  onSeleccionar: (clave: string) => void;
+  placeholder?: string;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [q, setQ] = useState('');
+  const filtradas = opciones.filter((o) => o.texto.toLowerCase().includes(q.trim().toLowerCase()));
+  return (
+    <View style={{ flex: 1, minWidth: 140 }}>
+      <Etiqueta texto={etiqueta} />
+      <Pressable accessibilityRole="button" accessibilityLabel={etiqueta} onPress={() => setAbierto(true)} style={[e.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+        <Text style={{ color: valorTexto ? color.texto : '#9AA8B6', fontSize: 15 }}>{valorTexto || placeholder || 'Seleccionar…'}</Text>
+        <Ionicons name="chevron-down" size={18} color={color.textoSuave} />
+      </Pressable>
+      <Modal visible={abierto} transparent animationType="fade" onRequestClose={() => setAbierto(false)}>
+        <View style={e.velo}>
+          <View style={[e.dialogo, { maxHeight: '80%' }]}>
+            <Text style={{ fontSize: 17, fontWeight: '700', color: color.texto }}>{etiqueta}</Text>
+            <TextInput
+              accessibilityLabel={`Buscar ${etiqueta}`}
+              value={q}
+              onChangeText={setQ}
+              placeholder="Buscar…"
+              placeholderTextColor="#9AA8B6"
+              style={e.input}
+            />
+            <ScrollView style={{ maxHeight: 360 }}>
+              {filtradas.map((o) => (
+                <Pressable
+                  key={o.clave}
+                  accessibilityRole="button"
+                  accessibilityLabel={o.texto}
+                  onPress={() => {
+                    onSeleccionar(o.clave);
+                    setAbierto(false);
+                    setQ('');
+                  }}
+                  style={({ pressed }) => ({ paddingVertical: 11, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: color.borde, backgroundColor: pressed ? color.primarioSuave : 'transparent' })}
+                >
+                  <Text style={{ color: color.texto, fontSize: 15 }}>{o.texto}</Text>
+                </Pressable>
+              ))}
+              {filtradas.length === 0 ? <Text style={{ color: color.textoSuave, padding: 12 }}>Sin resultados.</Text> : null}
+            </ScrollView>
+            <Boton titulo="Cerrar" variante="secundario" onPress={() => setAbierto(false)} />
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+export function Nota({ texto, tono = 'neutro' }: { texto: string; tono?: 'neutro' | 'aviso' | 'ok' }) {
+  const t = { neutro: [color.primarioSuave, color.primario], aviso: [color.avisoSuave, color.aviso], ok: [color.okSuave, color.ok] }[tono];
+  return (
+    <View style={{ padding: 10, borderRadius: 8, backgroundColor: t[0] }}>
+      <Text style={{ color: t[1], fontSize: 13, lineHeight: 18 }}>{texto}</Text>
+    </View>
+  );
+}
