@@ -301,18 +301,12 @@ export function Interruptor({
   ayuda?: string;
 }) {
   return (
-    <Pressable
-      accessibilityRole="switch"
-      accessibilityState={{ checked: valor }}
-      accessibilityLabel={etiqueta}
-      onPress={() => onChange(!valor)}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
-    >
+    <Pressable accessible={false} onPress={() => onChange(!valor)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
       <View style={{ flex: 1 }}>
         <Text style={e.etiqueta}>{etiqueta}</Text>
         {ayuda ? <Text style={e.ayuda}>{ayuda}</Text> : null}
       </View>
-      <Switch value={valor} onValueChange={onChange} trackColor={{ true: color.primario, false: '#CBD5E1' }} thumbColor="#fff" />
+      <Switch accessibilityLabel={etiqueta} value={valor} onValueChange={onChange} trackColor={{ true: color.primario, false: '#CBD5E1' }} thumbColor="#fff" />
     </Pressable>
   );
 }
