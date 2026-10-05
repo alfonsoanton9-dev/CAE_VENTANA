@@ -1,5 +1,5 @@
 import { obtenerG, type Parametros } from './parametros';
-import { MATERIALES_MARCO, type Expediente, type Ventana } from './tipos';
+import { MATERIALES_MARCO, type Actuacion, type Expediente, type Ventana } from './tipos';
 
 /**
  * Fórmula de la ficha RES070 (apartado 3):
@@ -21,44 +21,48 @@ export interface DesgloseVentana {
   ventanaId: string;
   etiqueta: string;
   unidades: number;
-  /** Superficie unitaria (m²). */
   superficieUnitaria?: number;
-  /** Superficie considerada = unitaria × unidades (m²). */
   superficie?: number;
   uhi?: number;
   uhf?: number;
   deltaU?: number;
   g: number | null;
   fp: number;
-  /** AE_hueco antes de aplicar Fp: (Uhi − Uhf)·S·G (ya forzado a 0 si procede). */
   aeBruto: number | null;
-  /** Valor calculado por la fórmula antes de forzar a 0 los ahorros negativos. */
   aeFormula: number | null;
-  /** El ahorro era negativo y se ha forzado a 0 kWh según Ajustes. */
   forzadoACero: boolean;
-  /** AE_hueco = Fp · (Uhi − Uhf)·S·G  [kWh/año]. */
   ae: number | null;
-  /** Falta algún dato para calcular. */
   completa: boolean;
   avisos: Aviso[];
 }
 
-export interface ResultadoExpediente {
+export interface ResultadoActuacion {
+  actuacionId: string;
+  etiqueta: string;
   fp: number;
   g: number | null;
   ventanas: DesgloseVentana[];
   ventanasCalculadas: number;
   superficieHuecos: number;
   porcentajeEnvolvente: number | null;
-  /** Σ (Uhi − Uhf)·S·G sin Fp. */
   sumatorioBruto: number;
-  /** AE_TOTAL [kWh/año]. */
   aeTotal: number;
-  /** Multiplicador aplicado además de AE (Di si está activado, si no 1). */
   multiplicadorDuracion: number;
-  /** CAE = AE_TOTAL · multiplicador / kWh por CAE. */
   cae: number;
-  avisosExpediente: Aviso[];
+  avisos: Aviso[];
+  cumple: boolean;
+}
+
+export interface ResultadoExpediente {
+  actuaciones: ResultadoActuacion[];
+  ventanasCalculadas: number;
+  ventanasTotales: number;
+  superficieHuecos: number;
+  /** Σ AE de todas las actuaciones [kWh/año]. */
+  aeTotal: number;
+  /** Σ CAE de todas las actuaciones. */
+  cae: number;
+  avisos: Aviso[];
   cumple: boolean;
 }
 
@@ -72,11 +76,11 @@ export function superficieVentana(v: Ventana): number | undefined {
   return v.superficieM2 * u;
 }
 
-export function fpAplicable(e: Pick<Expediente, 'fpPersonalizado'>, p: Parametros): number {
-  return e.fpPersonalizado !== undefined && Number.isFinite(e.fpPersonalizado) ? e.fpPersonalizado : p.fp;
+export function fpAplicable(a: Pick<Actuacion, 'fpPersonalizado'>, p: Parametros): number {
+  return a.fpPersonalizado !== undefined && Number.isFinite(a.fpPersonalizado) ? a.fpPersonalizado : p.fp;
 }
 
-export function comprobarVentana(v: Ventana, e: Expediente, p: Parametros): Aviso[] {
+export function comprobarVentana(v: Ventana, a: Actuacion, p: Parametros): Aviso[] {
   const avisos: Aviso[] = [];
   const { nueva } = v;
 
@@ -97,14 +101,14 @@ export function comprobarVentana(v: Ventana, e: Expediente, p: Parametros): Avis
     });
   }
 
-  if (e.zonaInvierno) {
-    const max = p.permeabilidadMaxPorZona[e.zonaInvierno];
+  if (a.zonaInvierno) {
+    const max = p.permeabilidadMaxPorZona[a.zonaInvierno];
     if (nueva.clasePermeabilidad === 0) {
-      avisos.push({ gravedad: 'aviso', mensaje: `Indica la clase de permeabilidad al aire (máx. ${max} m³/h·m² a 100 Pa en zona ${e.zonaInvierno}).` });
+      avisos.push({ gravedad: 'aviso', mensaje: `Indica la clase de permeabilidad al aire (máx. ${max} m³/h·m² a 100 Pa en zona ${a.zonaInvierno}).` });
     } else if (p.permeabilidadPorClase[nueva.clasePermeabilidad] > max) {
       avisos.push({
         gravedad: 'error',
-        mensaje: `Permeabilidad al aire insuficiente: la clase ${nueva.clasePermeabilidad} (≤ ${p.permeabilidadPorClase[nueva.clasePermeabilidad]} m³/h·m²) supera el máximo de ${max} m³/h·m² para la zona ${e.zonaInvierno}.`,
+        mensaje: `Permeabilidad al aire insuficiente: la clase ${nueva.clasePermeabilidad} (≤ ${p.permeabilidadPorClase[nueva.clasePermeabilidad]} m³/h·m²) supera el máximo de ${max} m³/h·m² para la zona ${a.zonaInvierno}.`,
       });
     }
   }
@@ -135,9 +139,9 @@ export function comprobarVentana(v: Ventana, e: Expediente, p: Parametros): Avis
   return avisos;
 }
 
-export function desglosarVentana(v: Ventana, e: Expediente, p: Parametros): DesgloseVentana {
-  const g = obtenerG(p, e.zonaInvierno, e.zonaVerano);
-  const fp = fpAplicable(e, p);
+export function desglosarVentana(v: Ventana, a: Actuacion, p: Parametros): DesgloseVentana {
+  const g = obtenerG(p, a.zonaInvierno, a.zonaVerano);
+  const fp = fpAplicable(a, p);
   const S = superficieVentana(v);
   const uhi = v.anterior.transmitancia;
   const uhf = v.nueva.transmitancia;
@@ -171,26 +175,26 @@ export function desglosarVentana(v: Ventana, e: Expediente, p: Parametros): Desg
     forzadoACero,
     ae,
     completa,
-    avisos: comprobarVentana(v, e, p),
+    avisos: comprobarVentana(v, a, p),
   };
 }
 
-export function comprobarExpediente(e: Expediente, p: Parametros, porcentaje: number | null): Aviso[] {
+export function comprobarActuacion(a: Actuacion, p: Parametros, porcentaje: number | null): Aviso[] {
   const avisos: Aviso[] = [];
-  if (!e.zonaInvierno || !e.zonaVerano) {
+  if (!a.zonaInvierno || !a.zonaVerano) {
     avisos.push({ gravedad: 'error', mensaje: 'Indica la zona climática (invierno y verano) para obtener el coeficiente G.' });
-  } else if (obtenerG(p, e.zonaInvierno, e.zonaVerano) === null) {
+  } else if (obtenerG(p, a.zonaInvierno, a.zonaVerano) === null) {
     avisos.push({
       gravedad: 'error',
-      mensaje: `La zona ${e.zonaInvierno}${e.zonaVerano} no tiene valor de G en el Anexo II (ni en Ajustes).`,
+      mensaje: `La zona ${a.zonaInvierno}${a.zonaVerano} no tiene valor de G en el Anexo II (ni en Ajustes).`,
     });
   }
-  if (e.ubicacion === 'canarias') {
+  if (a.ubicacion === 'canarias') {
     avisos.push({ gravedad: 'error', mensaje: 'La ficha RES070 no aplica en Canarias: sólo Península, Illes Balears, Ceuta y Melilla.' });
   }
-  if (!e.edificioExistente) avisos.push({ gravedad: 'error', mensaje: 'La ficha RES070 aplica únicamente a edificios existentes.' });
-  if (!e.usoResidencialPrivado) avisos.push({ gravedad: 'error', mensaje: 'La ficha RES070 aplica únicamente a edificios de uso residencial privado.' });
-  if (e.superficieEnvolventeM2 === undefined || e.superficieEnvolventeM2 <= 0) {
+  if (!a.edificioExistente) avisos.push({ gravedad: 'error', mensaje: 'La ficha RES070 aplica únicamente a edificios existentes.' });
+  if (!a.usoResidencialPrivado) avisos.push({ gravedad: 'error', mensaje: 'La ficha RES070 aplica únicamente a edificios de uso residencial privado.' });
+  if (a.superficieEnvolventeM2 === undefined || a.superficieEnvolventeM2 <= 0) {
     avisos.push({ gravedad: 'aviso', mensaje: 'Indica la superficie total de la envolvente térmica final para comprobar el límite del 25 %.' });
   } else if (porcentaje !== null && porcentaje > p.umbralEnvolventePct) {
     avisos.push({
@@ -198,31 +202,33 @@ export function comprobarExpediente(e: Expediente, p: Parametros, porcentaje: nu
       mensaje: `La superficie de huecos rehabilitados (${porcentaje.toFixed(2).replace('.', ',')} %) supera el ${p.umbralEnvolventePct} % de la envolvente térmica final.`,
     });
   }
-  if (e.ventanas.length === 0) avisos.push({ gravedad: 'aviso', mensaje: 'Todavía no hay ventanas en el expediente.' });
+  if (a.ventanas.length === 0) avisos.push({ gravedad: 'aviso', mensaje: 'Todavía no hay ventanas en esta actuación.' });
   return avisos;
 }
 
-export function calcularExpediente(e: Expediente, p: Parametros): ResultadoExpediente {
-  const ventanas = e.ventanas.map((v) => desglosarVentana(v, e, p));
-  const fp = fpAplicable(e, p);
-  const g = obtenerG(p, e.zonaInvierno, e.zonaVerano);
+export function calcularActuacion(a: Actuacion, p: Parametros): ResultadoActuacion {
+  const ventanas = a.ventanas.map((v) => desglosarVentana(v, a, p));
+  const fp = fpAplicable(a, p);
+  const g = obtenerG(p, a.zonaInvierno, a.zonaVerano);
   const sumatorioBruto = ventanas.reduce((acc, d) => acc + (d.aeBruto ?? 0), 0);
   const aeTotal = fp * sumatorioBruto;
-  const superficieHuecos = e.ventanas.reduce((acc, v) => acc + (superficieVentana(v) ?? 0), 0);
+  const superficieHuecos = a.ventanas.reduce((acc, v) => acc + (superficieVentana(v) ?? 0), 0);
   const porcentajeEnvolvente =
-    e.superficieEnvolventeM2 !== undefined && e.superficieEnvolventeM2 > 0 ? (superficieHuecos / e.superficieEnvolventeM2) * 100 : null;
-  const multiplicadorDuracion = p.multiplicarPorDuracion && e.duracionAnios !== undefined && e.duracionAnios > 0 ? e.duracionAnios : 1;
+    a.superficieEnvolventeM2 !== undefined && a.superficieEnvolventeM2 > 0 ? (superficieHuecos / a.superficieEnvolventeM2) * 100 : null;
+  const multiplicadorDuracion = p.multiplicarPorDuracion && a.duracionAnios !== undefined && a.duracionAnios > 0 ? a.duracionAnios : 1;
   const cae = (aeTotal * multiplicadorDuracion) / p.kwhPorCae;
-  const avisosExpediente = comprobarExpediente(e, p, porcentajeEnvolvente);
+  const avisos = comprobarActuacion(a, p, porcentajeEnvolvente);
   const negativos = ventanas.filter((d) => d.forzadoACero).length;
   if (negativos > 0) {
-    avisosExpediente.push({
+    avisos.push({
       gravedad: 'aviso',
       mensaje: `${negativos} ventana${negativos > 1 ? 's tienen' : ' tiene'} ahorro negativo y se ${negativos > 1 ? 'computan' : 'computa'} como 0 kWh.`,
     });
   }
-  const cumple = avisosExpediente.every((a) => a.gravedad !== 'error') && ventanas.every((d) => d.avisos.every((a) => a.gravedad !== 'error'));
+  const cumple = avisos.every((x) => x.gravedad !== 'error') && ventanas.every((d) => d.avisos.every((x) => x.gravedad !== 'error'));
   return {
+    actuacionId: a.id,
+    etiqueta: a.etiqueta,
     fp,
     g,
     ventanas,
@@ -233,7 +239,21 @@ export function calcularExpediente(e: Expediente, p: Parametros): ResultadoExped
     aeTotal,
     multiplicadorDuracion,
     cae,
-    avisosExpediente,
+    avisos,
     cumple,
   };
+}
+
+export function calcularExpediente(e: Expediente, p: Parametros): ResultadoExpediente {
+  const actuaciones = e.actuaciones.map((a) => calcularActuacion(a, p));
+  const aeTotal = actuaciones.reduce((acc, r) => acc + r.aeTotal, 0);
+  const cae = actuaciones.reduce((acc, r) => acc + r.cae, 0);
+  const superficieHuecos = actuaciones.reduce((acc, r) => acc + r.superficieHuecos, 0);
+  const ventanasCalculadas = actuaciones.reduce((acc, r) => acc + r.ventanasCalculadas, 0);
+  const ventanasTotales = e.actuaciones.reduce((acc, a) => acc + a.ventanas.length, 0);
+  const avisos: Aviso[] = [];
+  if (e.actuaciones.length === 0) avisos.push({ gravedad: 'aviso', mensaje: 'El expediente no tiene actuaciones todavía.' });
+  if (!e.sujeto.razonSocial.trim()) avisos.push({ gravedad: 'aviso', mensaje: 'Indica el sujeto obligado o delegado del expediente.' });
+  const cumple = avisos.every((a) => a.gravedad !== 'error') && actuaciones.every((r) => r.cumple);
+  return { actuaciones, ventanasCalculadas, ventanasTotales, superficieHuecos, aeTotal, cae, avisos, cumple };
 }

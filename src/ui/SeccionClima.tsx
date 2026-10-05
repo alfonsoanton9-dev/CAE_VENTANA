@@ -3,7 +3,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import { deducirAltitud, deducirZona } from '@/domain/clima';
 import { formatoNumero } from '@/domain/formato';
 import { obtenerG, type Parametros } from '@/domain/parametros';
-import { ZONAS_INVIERNO, ZONAS_VERANO, type ExpedienteBorrador } from '@/domain/tipos';
+import { ZONAS_INVIERNO, ZONAS_VERANO, type CamposClima } from '@/domain/tipos';
 import { codigosProvincia, provinciaDesdeCodigoPostal, ubicacionDeProvincia } from '@/domain/zonasClimaticas';
 import { Boton, CampoNumero, Nota, Selector, SelectorLista, Seccion } from './componentes';
 import { color } from './tema';
@@ -26,14 +26,14 @@ const TEXTO_ORIGEN_ALTITUD = {
   '': 'Sin determinar.',
 } as const;
 
-export function SeccionClima({
+export function SeccionClima<T extends CamposClima>({
   d,
   setD,
   parametros,
   inicialTieneAltitud,
 }: {
-  d: ExpedienteBorrador;
-  setD: (fn: (x: ExpedienteBorrador) => ExpedienteBorrador) => void;
+  d: T;
+  setD: (fn: (x: T) => T) => void;
   parametros: Parametros;
   inicialTieneAltitud: boolean;
 }) {
@@ -253,6 +253,6 @@ export function SeccionClima({
   );
 }
 
-function claveConsulta(d: ExpedienteBorrador): string {
+function claveConsulta(d: CamposClima): string {
   return [d.codigoPostal.trim(), d.direccion.trim().toLowerCase(), d.municipio.trim().toLowerCase()].join('|');
 }

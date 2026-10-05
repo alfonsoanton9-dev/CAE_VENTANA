@@ -11,13 +11,20 @@ import { color } from '@/ui/tema';
 
 export default function Expedientes() {
   const router = useRouter();
-  const { cargado, expedientes, parametros } = useAlmacen();
+  const { cargado, expedientes, parametros, restaurarTutorial } = useAlmacen();
   const [busqueda, setBusqueda] = useState('');
 
   const filas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return expedientes
-      .filter((e) => !q || [e.referencia, e.referenciaCatastral, e.cliente.nombre, e.direccion, e.municipio].some((t) => t.toLowerCase().includes(q)))
+      .filter((e) => {
+        if (!q) return true;
+        const enExpediente = [e.referencia, e.sujeto.razonSocial, e.sujeto.nifNie].some((t) => t.toLowerCase().includes(q));
+        const enActuaciones = e.actuaciones.some((a) =>
+          [a.etiqueta, a.referenciaCatastral, a.cliente.nombre, a.direccion, a.municipio].some((t) => t.toLowerCase().includes(q)),
+        );
+        return enExpediente || enActuaciones;
+      })
       .map((e) => ({ e, r: calcularExpediente(e, parametros) }));
   }, [expedientes, parametros, busqueda]);
 
@@ -32,7 +39,7 @@ export default function Expedientes() {
             accessibilityLabel="Buscar expedientes"
             value={busqueda}
             onChangeText={setBusqueda}
-            placeholder="Buscar por referencia, cliente o dirección"
+            placeholder="Buscar por referencia, sujeto, cliente o dirección"
             placeholderTextColor="#9AA8B6"
             style={{ flex: 1, paddingVertical: 10, fontSize: 15, color: color.texto }}
           />
@@ -45,9 +52,10 @@ export default function Expedientes() {
           <Vacio
             icono="business-outline"
             titulo="Aún no hay expedientes"
-            texto="Crea tu primer expediente para registrar la vivienda, el cliente y las ventanas sustituidas, y calcular los CAE según la ficha RES070."
+            texto="Crea un expediente (sujeto obligado/delegado) y añade actuaciones con sus ventanas y documentación según la ficha RES070."
           >
             <Boton titulo="Crear expediente" icono="add" onPress={() => router.push('/expediente/nuevo')} />
+            <Boton titulo="Cargar expediente tutorial" variante="secundario" icono="school-outline" onPress={restaurarTutorial} />
           </Vacio>
         </Tarjeta>
       ) : filas.length === 0 ? (
@@ -55,35 +63,40 @@ export default function Expedientes() {
           <Vacio icono="search-outline" titulo="Sin resultados" texto={`Ningún expediente coincide con “${busqueda}”.`} />
         </Tarjeta>
       ) : (
-        filas.map(({ e, r }) => (
-          <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={`Abrir expediente ${e.referencia}`} onPress={() => router.push(`/expediente/${e.id}`)}>
-            {({ pressed }) => (
-              <Tarjeta style={pressed ? { opacity: 0.85 } : undefined}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={{ fontSize: 17, fontWeight: '700', color: color.texto }}>{e.referencia || 'Sin referencia'}</Text>
-                    <Text style={{ color: color.textoSuave, fontSize: 13.5 }} numberOfLines={2}>
-                      {[e.cliente.nombre, e.direccion, e.municipio].filter(Boolean).join(' · ') || 'Sin datos de cliente ni dirección'}
-                    </Text>
-                    {e.referenciaCatastral ? <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Ref. catastral {e.referenciaCatastral}</Text> : null}
+        filas.map(({ e, r }) => {
+          const primera = e.actuaciones[0];
+          return (
+            <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={`Abrir expediente ${e.referencia}`} onPress={() => router.push(`/expediente/${e.id}`)}>
+              {({ pressed }) => (
+                <Tarjeta style={pressed ? { opacity: 0.85 } : undefined}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={{ fontSize: 17, fontWeight: '700', color: color.texto }}>{e.referencia || 'Sin referencia'}</Text>
+                      <Text style={{ color: color.textoSuave, fontSize: 13.5 }} numberOfLines={2}>
+                        {[e.sujeto.razonSocial || e.sujeto.tipo, primera?.cliente.nombre, primera?.municipio].filter(Boolean).join(' · ') || 'Sin actuaciones'}
+                      </Text>
+                      <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>
+                        {e.actuaciones.length} actuación{e.actuaciones.length === 1 ? '' : 'es'}
+                      </Text>
+                    </View>
+                    <Insignia texto={etiquetaEstado(e.estado)} tono={tonoEstado(e.estado)} />
                   </View>
-                  <Insignia texto={etiquetaEstado(e.estado)} tono={tonoEstado(e.estado)} />
-                </View>
-                <View style={{ flexDirection: 'row', gap: 20, marginTop: 14, flexWrap: 'wrap' }}>
-                  <Dato titulo="Ventanas" valor={String(e.ventanas.length)} />
-                  <Dato titulo="Zona" valor={e.zonaInvierno && e.zonaVerano ? `${e.zonaInvierno}${e.zonaVerano}` : '—'} />
-                  <Dato titulo="Ahorro (kWh/año)" valor={formatoNumero(r.aeTotal)} />
-                  <Dato titulo="CAE" valor={formatoNumero(r.cae)} destacado />
-                </View>
-                {!r.cumple && e.ventanas.length > 0 ? (
-                  <View style={{ marginTop: 10 }}>
-                    <Insignia texto="Requisitos por revisar" tono="aviso" />
+                  <View style={{ flexDirection: 'row', gap: 20, marginTop: 14, flexWrap: 'wrap' }}>
+                    <Dato titulo="Actuaciones" valor={String(e.actuaciones.length)} />
+                    <Dato titulo="Ventanas" valor={String(r.ventanasTotales)} />
+                    <Dato titulo="Ahorro (kWh/año)" valor={formatoNumero(r.aeTotal)} />
+                    <Dato titulo="CAE" valor={formatoNumero(r.cae)} destacado />
                   </View>
-                ) : null}
-              </Tarjeta>
-            )}
-          </Pressable>
-        ))
+                  {!r.cumple && r.ventanasTotales > 0 ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Insignia texto="Requisitos por revisar" tono="aviso" />
+                    </View>
+                  ) : null}
+                </Tarjeta>
+              )}
+            </Pressable>
+          );
+        })
       )}
     </Pantalla>
   );

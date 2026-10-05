@@ -22,7 +22,10 @@ export default function RootLayout() {
           <Stack.Screen name="expediente/nuevo" options={{ title: 'Nuevo expediente' }} />
           <Stack.Screen name="expediente/[id]/index" options={{ title: 'Expediente' }} />
           <Stack.Screen name="expediente/[id]/editar" options={{ title: 'Editar expediente' }} />
-          <Stack.Screen name="expediente/[id]/ventana/[ventanaId]" options={{ title: 'Ventana' }} />
+          <Stack.Screen name="expediente/[id]/actuacion/nueva" options={{ title: 'Nueva actuación' }} />
+          <Stack.Screen name="expediente/[id]/actuacion/[actuacionId]/index" options={{ title: 'Actuación' }} />
+          <Stack.Screen name="expediente/[id]/actuacion/[actuacionId]/editar" options={{ title: 'Editar actuación' }} />
+          <Stack.Screen name="expediente/[id]/actuacion/[actuacionId]/ventana/[ventanaId]" options={{ title: 'Ventana' }} />
         </Stack>
       </ConfirmarProvider>
     </AlmacenProvider>

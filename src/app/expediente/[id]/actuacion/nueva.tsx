@@ -1,13 +1,17 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { borradorActuacionVacio } from '@/domain/fabrica';
 import { useAlmacen } from '@/store/almacen';
 import { Cargando, Pantalla, Tarjeta, Vacio } from '@/ui/componentes';
-import { FormularioExpediente } from '@/ui/FormularioExpediente';
+import { FormularioActuacion } from '@/ui/FormularioActuacion';
 
-export default function EditarExpediente() {
+export default function NuevaActuacion() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { cargado, obtenerExpediente, actualizarExpediente } = useAlmacen();
+  const { cargado, obtenerExpediente, crearActuacion } = useAlmacen();
+  const [inicial] = useState(borradorActuacionVacio);
   const exp = obtenerExpediente(id);
+
   if (!cargado) return <Cargando />;
   if (!exp)
     return (
@@ -17,17 +21,18 @@ export default function EditarExpediente() {
         </Tarjeta>
       </Pantalla>
     );
-  const { id: _id, actuaciones: _a, creadoEn: _c, actualizadoEn: _u, ...borrador } = exp;
+
   return (
     <>
-      <Stack.Screen options={{ title: 'Editar expediente' }} />
-      <FormularioExpediente
-        inicial={borrador}
-        textoGuardar="Guardar cambios"
+      <Stack.Screen options={{ title: 'Nueva actuación' }} />
+      <FormularioActuacion
+        inicial={inicial}
+        textoGuardar="Crear actuación"
         onCancelar={() => router.back()}
         onGuardar={(b) => {
-          actualizarExpediente(exp.id, b);
-          router.back();
+          const creada = crearActuacion(exp.id, b);
+          if (creada) router.replace(`/expediente/${exp.id}/actuacion/${creada.id}`);
+          else router.back();
         }}
       />
     </>

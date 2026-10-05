@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { formatoNumero } from '@/domain/formato';
-import { UBICACIONES, type ExpedienteBorrador } from '@/domain/tipos';
-import { useAlmacen } from '@/store/almacen';
-import { Boton, CampoFecha, CampoNumero, CampoTexto, Interruptor, Pantalla, Selector, Seccion } from './componentes';
-import { ESTADOS } from './estado';
-import { SeccionClima } from './SeccionClima';
+import type { ExpedienteBorrador } from '@/domain/tipos';
+import { Boton, CampoTexto, Pantalla, Selector, Seccion } from './componentes';
+import { ESTADOS_EXPEDIENTE } from './estado';
 import { color } from './tema';
+
+const TIPOS_SUJETO = [
+  { valor: 'obligado' as const, etiqueta: 'Sujeto obligado' },
+  { valor: 'delegado' as const, etiqueta: 'Sujeto delegado' },
+];
 
 export function FormularioExpediente({
   inicial,
@@ -19,11 +21,8 @@ export function FormularioExpediente({
   onGuardar: (e: ExpedienteBorrador) => void;
   onCancelar: () => void;
 }) {
-  const { parametros } = useAlmacen();
   const [d, setD] = useState<ExpedienteBorrador>(inicial);
   const [intentado, setIntentado] = useState(false);
-  const set = <K extends keyof ExpedienteBorrador>(k: K, v: ExpedienteBorrador[K]) => setD((x) => ({ ...x, [k]: v }));
-
   const falta = d.referencia.trim() === '';
 
   const guardar = () => {
@@ -41,103 +40,81 @@ export function FormularioExpediente({
         </>
       }
     >
-      <Seccion titulo="Identificación del expediente">
+      <Seccion titulo="Identificación del expediente" ayuda="El expediente agrupa una o varias actuaciones y es la unidad que se lleva a verificación.">
         <CampoTexto
-          etiqueta="Referencia del expediente"
+          etiqueta="Referencia / nº de expediente"
           valor={d.referencia}
-          onChange={(v) => set('referencia', v)}
+          onChange={(v) => setD((x) => ({ ...x, referencia: v }))}
           placeholder="Ej. CAE-2026-014"
           requerido
         />
         {intentado && falta ? <Text style={{ color: color.error, fontSize: 12.5 }}>La referencia del expediente es obligatoria.</Text> : null}
-        <Selector etiqueta="Estado" opciones={ESTADOS} valor={d.estado} onChange={(v) => v && set('estado', v)} />
-        <CampoTexto
-          etiqueta="Referencia catastral"
-          valor={d.referenciaCatastral}
-          onChange={(v) => set('referenciaCatastral', v.toUpperCase())}
-          placeholder="20 caracteres"
-          ayuda="Todas las ventanas del expediente pertenecen a la misma referencia catastral (n de la fórmula)."
-          mayusculas
-        />
-        <Fila2>
-          <CampoFecha etiqueta="Fecha de inicio de la actuación" valor={d.fechaInicio} onChange={(v) => set('fechaInicio', v)} />
-          <CampoFecha etiqueta="Fecha de fin de la actuación" valor={d.fechaFin} onChange={(v) => set('fechaFin', v)} />
-        </Fila2>
-        <CampoNumero
-          etiqueta="Duración indicativa Di"
-          unidad="años"
-          valor={d.duracionAnios}
-          onChange={(v) => set('duracionAnios', v)}
-          ayuda="Recomendación (UE) 2019/1658 o criterio técnico. Dato administrativo: no interviene en el cálculo del ahorro."
-        />
-      </Seccion>
-
-      <Seccion titulo="Edificio / vivienda">
-        <CampoTexto etiqueta="Dirección del inmueble" valor={d.direccion} onChange={(v) => set('direccion', v)} />
-        <Fila2>
-          <CampoTexto etiqueta="Código postal" valor={d.codigoPostal} onChange={(v) => set('codigoPostal', v)} teclado="numeric" />
-          <CampoTexto etiqueta="Municipio" valor={d.municipio} onChange={(v) => set('municipio', v)} />
-        </Fila2>
         <Selector
-          etiqueta="Ámbito territorial"
-          ayuda="La ficha sólo aplica en la Península, las Illes Balears, Ceuta y Melilla."
-          opciones={UBICACIONES}
-          valor={d.ubicacion}
-          onChange={(v) => v && set('ubicacion', v)}
-        />
-        <Interruptor etiqueta="Edificio existente" valor={d.edificioExistente} onChange={(v) => set('edificioExistente', v)} />
-        <Interruptor
-          etiqueta="Uso residencial privado"
-          ayuda="Según el Anejo A del CTE DB HE."
-          valor={d.usoResidencialPrivado}
-          onChange={(v) => set('usoResidencialPrivado', v)}
-        />
-        <CampoNumero
-          etiqueta="Superficie total de la envolvente térmica final"
-          unidad="m²"
-          valor={d.superficieEnvolventeM2}
-          onChange={(v) => set('superficieEnvolventeM2', v)}
-          ayuda={`Se usa para comprobar que los huecos rehabilitados no superan el ${parametros.umbralEnvolventePct} % (Anejo C del CTE DB HE).`}
+          etiqueta="Estado del expediente"
+          opciones={ESTADOS_EXPEDIENTE}
+          valor={d.estado}
+          onChange={(v) => v && setD((x) => ({ ...x, estado: v }))}
+          ayuda="Borrador → en elaboración → verificado."
         />
       </Seccion>
 
-      <SeccionClima d={d} setD={setD} parametros={parametros} inicialTieneAltitud={inicial.altitudM !== undefined} />
-
-      <Seccion titulo="Cliente / propietario">
-        <CampoTexto etiqueta="Nombre o razón social" valor={d.cliente.nombre} onChange={(v) => set('cliente', { ...d.cliente, nombre: v })} />
-        <Fila2>
-          <CampoTexto etiqueta="NIF/NIE" valor={d.cliente.nifNie} onChange={(v) => set('cliente', { ...d.cliente, nifNie: v.toUpperCase() })} mayusculas />
-          <CampoTexto etiqueta="Teléfono" valor={d.cliente.telefono} onChange={(v) => set('cliente', { ...d.cliente, telefono: v })} teclado="phone-pad" />
-        </Fila2>
-        <CampoTexto etiqueta="Correo electrónico" valor={d.cliente.email} onChange={(v) => set('cliente', { ...d.cliente, email: v })} teclado="email-address" />
-        <CampoTexto etiqueta="Dirección postal del cliente" valor={d.cliente.direccion} onChange={(v) => set('cliente', { ...d.cliente, direccion: v })} />
+      <Seccion titulo="Sujeto obligado / delegado" ayuda="Contrato a nivel de expediente. Habrá un sujeto por expediente.">
+        <Selector
+          etiqueta="Tipo"
+          opciones={TIPOS_SUJETO}
+          valor={d.sujeto.tipo}
+          onChange={(v) => v && setD((x) => ({ ...x, sujeto: { ...x.sujeto, tipo: v } }))}
+        />
         <CampoTexto
-          etiqueta="Propietario inicial del ahorro de energía final"
-          valor={d.propietarioAhorro}
-          onChange={(v) => set('propietarioAhorro', v)}
-          ayuda="Quien formaliza la declaración responsable (Anexo I de la ficha)."
+          etiqueta="Razón social"
+          valor={d.sujeto.razonSocial}
+          onChange={(v) => setD((x) => ({ ...x, sujeto: { ...x.sujeto, razonSocial: v } }))}
+          placeholder="Empresa o entidad"
         />
-      </Seccion>
-
-      <Seccion titulo="Solicitante de la emisión de CAE" ayuda="Representante que firma la ficha electrónicamente.">
         <Fila2>
-          <CampoTexto etiqueta="Representante del solicitante" valor={d.representante.nombre} onChange={(v) => set('representante', { ...d.representante, nombre: v })} />
-          <CampoTexto etiqueta="NIF/NIE" valor={d.representante.nifNie} onChange={(v) => set('representante', { ...d.representante, nifNie: v.toUpperCase() })} mayusculas />
+          <CampoTexto
+            etiqueta="NIF/CIF"
+            valor={d.sujeto.nifNie}
+            onChange={(v) => setD((x) => ({ ...x, sujeto: { ...x.sujeto, nifNie: v.toUpperCase() } }))}
+            mayusculas
+          />
+          <CampoTexto
+            etiqueta="Teléfono"
+            valor={d.sujeto.telefono}
+            onChange={(v) => setD((x) => ({ ...x, sujeto: { ...x.sujeto, telefono: v } }))}
+            teclado="phone-pad"
+          />
+        </Fila2>
+        <CampoTexto
+          etiqueta="Domicilio"
+          valor={d.sujeto.domicilio}
+          onChange={(v) => setD((x) => ({ ...x, sujeto: { ...x.sujeto, domicilio: v } }))}
+        />
+        <CampoTexto
+          etiqueta="Correo electrónico"
+          valor={d.sujeto.email}
+          onChange={(v) => setD((x) => ({ ...x, sujeto: { ...x.sujeto, email: v } }))}
+          teclado="email-address"
+        />
+        <Fila2>
+          <CampoTexto
+            etiqueta="Representante legal"
+            valor={d.sujeto.representante.nombre}
+            onChange={(v) => setD((x) => ({ ...x, sujeto: { ...x.sujeto, representante: { ...x.sujeto.representante, nombre: v } } }))}
+          />
+          <CampoTexto
+            etiqueta="NIF/NIE del representante"
+            valor={d.sujeto.representante.nifNie}
+            onChange={(v) =>
+              setD((x) => ({ ...x, sujeto: { ...x.sujeto, representante: { ...x.sujeto.representante, nifNie: v.toUpperCase() } } }))
+            }
+            mayusculas
+          />
         </Fila2>
       </Seccion>
 
-      <Seccion titulo="Parámetros de cálculo del expediente">
-        <CampoNumero
-          etiqueta="Factor de ponderación Fp propio"
-          valor={d.fpPersonalizado}
-          onChange={(v) => set('fpPersonalizado', v)}
-          placeholder={`Vacío = usar ajustes (${formatoNumero(parametros.fp, 2)})`}
-          ayuda="Ajusta la demanda estimada al consumo real de energía final. Déjalo vacío para usar el valor de Ajustes."
-        />
-      </Seccion>
-
-      <Seccion titulo="Notas">
-        <CampoTexto etiqueta="Observaciones" valor={d.notas} onChange={(v) => set('notas', v)} multilinea />
+      <Seccion titulo="Notas del expediente">
+        <CampoTexto etiqueta="Observaciones" valor={d.notas} onChange={(v) => setD((x) => ({ ...x, notas: v }))} multilinea />
       </Seccion>
     </Pantalla>
   );

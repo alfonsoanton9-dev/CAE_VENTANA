@@ -2,31 +2,18 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { calcularExpediente } from '@/domain/calculo';
-import { deducirZona } from '@/domain/clima';
-import { formatoNumero, isoAFecha } from '@/domain/formato';
-import type { DocumentacionChecklist } from '@/domain/tipos';
-import { UBICACIONES } from '@/domain/tipos';
+import { TIPOS_DOCUMENTO } from '@/domain/tipos';
+import { formatoNumero } from '@/domain/formato';
 import { useAlmacen } from '@/store/almacen';
-import { Boton, BotonIcono, Cargando, Fila, Insignia, Interruptor, ListaAvisos, Pantalla, Seccion, Tarjeta, useConfirmar, Vacio } from '@/ui/componentes';
-import { TablaDesglose } from '@/ui/Desglose';
-import { etiquetaEstado, tonoEstado } from '@/ui/estado';
+import { Boton, BotonIcono, Cargando, Fila, Insignia, ListaAvisos, Pantalla, Seccion, Tarjeta, useConfirmar, Vacio } from '@/ui/componentes';
+import { etiquetaEstado, etiquetaEstadoObra, tonoEstado, tonoEstadoObra } from '@/ui/estado';
 import { color } from '@/ui/tema';
-
-const DOCUMENTOS: Array<{ clave: keyof DocumentacionChecklist; etiqueta: string }> = [
-  { clave: 'fichaFirmada', etiqueta: 'Ficha cumplimentada y firmada por el representante legal' },
-  { clave: 'declaracionResponsable', etiqueta: 'Declaración responsable sobre ayudas públicas (Anexo I)' },
-  { clave: 'facturas', etiqueta: 'Facturas justificativas de la inversión' },
-  { clave: 'informeFotografico', etiqueta: 'Informe fotográfico antes y después' },
-  { clave: 'certificadoDirectorObra', etiqueta: 'Certificado de la dirección de obra (envolvente, transmitancias, variables)' },
-  { clave: 'certificadoEficienciaEnergetica', etiqueta: 'Certificado de eficiencia energética con justificante de registro' },
-  { clave: 'declaracionPrestacionesCE', etiqueta: 'Declaración de prestaciones y marcado CE' },
-];
 
 export default function DetalleExpediente() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const confirmar = useConfirmar();
-  const { cargado, obtenerExpediente, parametros, actualizarExpediente, duplicarExpediente, eliminarExpediente, duplicarVentana, eliminarVentana } = useAlmacen();
+  const { cargado, obtenerExpediente, parametros, duplicarExpediente, eliminarExpediente, duplicarActuacion, eliminarActuacion } = useAlmacen();
   const exp = obtenerExpediente(id);
   const r = useMemo(() => (exp ? calcularExpediente(exp, parametros) : null), [exp, parametros]);
 
@@ -42,10 +29,7 @@ export default function DetalleExpediente() {
       </Pantalla>
     );
 
-  const docsHechos = DOCUMENTOS.filter((d) => exp.documentacion[d.clave]).length;
-  const ubic = UBICACIONES.find((u) => u.valor === exp.ubicacion)?.etiqueta;
-  const zonaTabla = deducirZona(parametros.zonasClimaticas, exp.provinciaCodigo, exp.altitudM);
-  const oc = exp.origenClima;
+  const s = exp.sujeto;
 
   return (
     <Pantalla>
@@ -58,22 +42,21 @@ export default function DetalleExpediente() {
             <Text testID="cae-total" style={{ color: '#fff', fontSize: 38, fontWeight: '800' }}>
               {formatoNumero(r.cae)}
             </Text>
-            <Text style={{ color: '#CFE2F7' }}>{formatoNumero(r.aeTotal)} kWh/año de ahorro de energía final</Text>
+            <Text style={{ color: '#CFE2F7' }}>{formatoNumero(r.aeTotal)} kWh/año · suma de {exp.actuaciones.length} actuación{exp.actuaciones.length === 1 ? '' : 'es'}</Text>
           </View>
           <Insignia texto={etiquetaEstado(exp.estado)} tono={tonoEstado(exp.estado)} />
         </View>
         <View style={{ flexDirection: 'row', gap: 22, marginTop: 14, flexWrap: 'wrap' }}>
-          <Resumen titulo="Ventanas" valor={`${r.ventanasCalculadas}/${exp.ventanas.length}`} />
-          <Resumen titulo="Superficie huecos" valor={`${formatoNumero(r.superficieHuecos)} m²`} />
-          <Resumen titulo="% envolvente" valor={r.porcentajeEnvolvente === null ? '—' : `${formatoNumero(r.porcentajeEnvolvente)} %`} />
-          <Resumen titulo="Zona · G" valor={exp.zonaInvierno && exp.zonaVerano ? `${exp.zonaInvierno}${exp.zonaVerano} · ${r.g ?? '—'}` : '—'} />
+          <Resumen titulo="Actuaciones" valor={String(exp.actuaciones.length)} />
+          <Resumen titulo="Ventanas" valor={`${r.ventanasCalculadas}/${r.ventanasTotales}`} />
+          <Resumen titulo="Huecos" valor={`${formatoNumero(r.superficieHuecos)} m²`} />
         </View>
       </Tarjeta>
 
-      <ListaAvisos avisos={r.avisosExpediente} />
+      <ListaAvisos avisos={r.avisos} />
 
       <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
-        <Boton titulo="Editar datos" variante="secundario" icono="create-outline" onPress={() => router.push(`/expediente/${exp.id}/editar`)} />
+        <Boton titulo="Editar expediente" variante="secundario" icono="create-outline" onPress={() => router.push(`/expediente/${exp.id}/editar`)} />
         <Boton
           titulo="Duplicar"
           variante="secundario"
@@ -88,7 +71,14 @@ export default function DetalleExpediente() {
           variante="peligro"
           icono="trash-outline"
           onPress={async () => {
-            if (await confirmar({ titulo: 'Eliminar expediente', mensaje: `Se eliminará “${exp.referencia}” con sus ${exp.ventanas.length} ventanas. Esta acción no se puede deshacer.`, textoConfirmar: 'Eliminar', peligro: true })) {
+            if (
+              await confirmar({
+                titulo: 'Eliminar expediente',
+                mensaje: `Se eliminará “${exp.referencia}” con sus ${exp.actuaciones.length} actuaciones. Esta acción no se puede deshacer.`,
+                textoConfirmar: 'Eliminar',
+                peligro: true,
+              })
+            ) {
               eliminarExpediente(exp.id);
               router.replace('/');
             }
@@ -96,110 +86,71 @@ export default function DetalleExpediente() {
         />
       </View>
 
+      <Seccion titulo="Sujeto obligado / delegado">
+        <Fila etiqueta="Tipo" valor={s.tipo === 'delegado' ? 'Sujeto delegado' : 'Sujeto obligado'} />
+        <Fila etiqueta="Razón social" valor={s.razonSocial || '—'} />
+        <Fila etiqueta="NIF/CIF" valor={s.nifNie || '—'} />
+        <Fila etiqueta="Contacto" valor={[s.telefono, s.email].filter(Boolean).join(' · ') || '—'} />
+        <Fila etiqueta="Representante" valor={[s.representante.nombre, s.representante.nifNie].filter(Boolean).join(' · ') || '—'} />
+        {exp.notas ? <Fila etiqueta="Notas" valor={exp.notas} /> : null}
+      </Seccion>
+
       <Tarjeta>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: color.texto }}>Ventanas ({exp.ventanas.length})</Text>
-          <Boton titulo="Añadir ventana" icono="add" onPress={() => router.push(`/expediente/${exp.id}/ventana/nueva`)} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: color.texto }}>Actuaciones ({exp.actuaciones.length})</Text>
+          <Boton titulo="Añadir actuación" icono="add" onPress={() => router.push(`/expediente/${exp.id}/actuacion/nueva`)} />
         </View>
-        {exp.ventanas.length === 0 ? (
+        {exp.actuaciones.length === 0 ? (
           <Vacio
-            icono="grid-outline"
-            titulo="Sin ventanas todavía"
-            texto="Añade cada ventana, puerta-ventana o lucernario sustituido con su superficie y las transmitancias anterior y nueva."
+            icono="home-outline"
+            titulo="Sin actuaciones todavía"
+            texto="Cada actuación agrupa un inmueble (dirección, CP, referencia catastral, zona climática), sus ventanas y la documentación del apartado 5."
           />
         ) : (
           <View style={{ marginTop: 12, gap: 10 }}>
-            {r.ventanas.map((d) => {
-              const v = exp.ventanas.find((x) => x.id === d.ventanaId)!;
-              const errores = d.avisos.filter((a) => a.gravedad === 'error').length;
+            {r.actuaciones.map((ra) => {
+              const a = exp.actuaciones.find((x) => x.id === ra.actuacionId)!;
+              const docs = TIPOS_DOCUMENTO.filter((t) => (a.documentacion[t.clave] ?? []).length > 0).length;
               return (
-                <View key={v.id} style={{ borderWidth: 1, borderColor: color.borde, borderRadius: 10, padding: 12, gap: 6 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: '700', fontSize: 15.5, color: color.texto }}>{v.etiqueta || 'Sin etiqueta'}</Text>
-                      <Text style={{ color: color.textoSuave, fontSize: 13 }}>
-                        {[v.estancia, v.planta && `Planta ${v.planta}`, v.orientacion].filter(Boolean).join(' · ') || 'Sin ubicación'}
+                <View key={a.id} style={{ borderWidth: 1, borderColor: color.borde, borderRadius: 10, padding: 12, gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={{ fontWeight: '700', fontSize: 15.5, color: color.texto }}>{a.etiqueta || 'Sin etiqueta'}</Text>
+                      <Text style={{ color: color.textoSuave, fontSize: 13 }} numberOfLines={2}>
+                        {[a.direccion, a.codigoPostal, a.municipio].filter(Boolean).join(', ') || 'Sin dirección'}
                       </Text>
+                      {a.referenciaCatastral ? <Text style={{ color: color.textoSuave, fontSize: 12 }}>Ref. catastral {a.referenciaCatastral}</Text> : null}
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+                        <Insignia texto={etiquetaEstadoObra(a.estadoObra)} tono={tonoEstadoObra(a.estadoObra)} />
+                        {a.zonaInvierno && a.zonaVerano ? <Insignia texto={`Zona ${a.zonaInvierno}${a.zonaVerano}`} tono="neutro" /> : null}
+                        <Insignia texto={`Docs ${docs}/${TIPOS_DOCUMENTO.length}`} tono={docs === TIPOS_DOCUMENTO.length ? 'ok' : 'aviso'} />
+                      </View>
                     </View>
-                    <BotonIcono icono="create-outline" etiqueta={`Editar ${v.etiqueta}`} onPress={() => router.push(`/expediente/${exp.id}/ventana/${v.id}`)} />
-                    <BotonIcono icono="copy-outline" etiqueta={`Duplicar ${v.etiqueta}`} onPress={() => duplicarVentana(exp.id, v.id)} />
+                    <BotonIcono icono="create-outline" etiqueta={`Abrir ${a.etiqueta}`} onPress={() => router.push(`/expediente/${exp.id}/actuacion/${a.id}`)} />
+                    <BotonIcono icono="copy-outline" etiqueta={`Duplicar ${a.etiqueta}`} onPress={() => duplicarActuacion(exp.id, a.id)} />
                     <BotonIcono
                       icono="trash-outline"
                       peligro
-                      etiqueta={`Eliminar ${v.etiqueta}`}
+                      etiqueta={`Eliminar ${a.etiqueta}`}
                       onPress={async () => {
-                        if (await confirmar({ titulo: 'Eliminar ventana', mensaje: `¿Eliminar “${v.etiqueta}” del expediente?`, textoConfirmar: 'Eliminar', peligro: true })) eliminarVentana(exp.id, v.id);
+                        if (await confirmar({ titulo: 'Eliminar actuación', mensaje: `¿Eliminar “${a.etiqueta}” y sus ${a.ventanas.length} ventanas?`, textoConfirmar: 'Eliminar', peligro: true }))
+                          eliminarActuacion(exp.id, a.id);
                       }}
                     />
                   </View>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
-                    <Mini t="S" v={d.superficie === undefined ? '—' : `${formatoNumero(d.superficie)} m²`} />
-                    <Mini t="Uhi → Uhf" v={`${formatoNumero(d.uhi)} → ${formatoNumero(d.uhf)}`} />
-                    <Mini t="AE" v={d.ae === null ? '—' : `${formatoNumero(d.ae)} kWh/año`} fuerte />
+                    <Mini t="Ventanas" v={`${ra.ventanasCalculadas}/${a.ventanas.length}`} />
+                    <Mini t="AE" v={`${formatoNumero(ra.aeTotal)} kWh/año`} />
+                    <Mini t="CAE" v={formatoNumero(ra.cae)} fuerte />
                   </View>
-                  {!d.completa || errores > 0 ? (
-                    <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                      {!d.completa ? <Insignia texto="Datos incompletos" tono="aviso" /> : null}
-                      {errores > 0 ? <Insignia texto={`${errores} requisito${errores > 1 ? 's' : ''} sin cumplir`} tono="error" /> : null}
-                    </View>
-                  ) : null}
+                  {!ra.cumple ? <Insignia texto="Requisitos por revisar" tono="aviso" /> : null}
+                  <Boton titulo="Abrir actuación" variante="secundario" onPress={() => router.push(`/expediente/${exp.id}/actuacion/${a.id}`)} />
                 </View>
               );
             })}
           </View>
         )}
       </Tarjeta>
-
-      <Seccion titulo="Desglose del cálculo" ayuda="Aplicación paso a paso de la fórmula de la ficha RES070 con los parámetros vigentes en Ajustes.">
-        <TablaDesglose r={r} p={parametros} />
-      </Seccion>
-
-      <Seccion titulo="Datos del expediente">
-        <Fila etiqueta="Referencia catastral" valor={exp.referenciaCatastral || '—'} />
-        <Fila etiqueta="Inmueble" valor={[exp.direccion, exp.codigoPostal, exp.municipio, exp.provincia].filter(Boolean).join(', ') || '—'} />
-        <Fila etiqueta="Ámbito" valor={ubic ?? '—'} />
-        <Fila
-          etiqueta="Zona climática"
-          valor={exp.zonaInvierno && exp.zonaVerano ? `${exp.zonaInvierno}${exp.zonaVerano}${r.g !== null ? ` (G = ${formatoNumero(r.g, 0)})` : ''}` : '—'}
-        />
-        {oc?.zona === 'automatica' && zonaTabla ? (
-          <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Zona automática: {zonaTabla.descripcion}</Text>
-        ) : oc?.zona === 'manual' ? (
-          <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Zona elegida a mano{zonaTabla ? ` (la tabla daría ${zonaTabla.texto})` : ''}.</Text>
-        ) : null}
-        {exp.ubicacion === 'canarias' ? (
-          <Text style={{ color: color.aviso, fontSize: 12.5 }}>Canarias queda fuera del ámbito de la ficha RES070 (zonas α sin G en el Anexo II).</Text>
-        ) : null}
-        <Fila etiqueta="Altitud" valor={exp.altitudM === undefined ? '—' : `${formatoNumero(exp.altitudM, 0)} m`} />
-        {oc?.altitudDetalle ? <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Origen altitud: {oc.altitudDetalle}</Text> : null}
-        {oc?.provincia === 'codigo-postal' ? (
-          <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Provincia deducida del código postal.</Text>
-        ) : oc?.provincia === 'manual' ? (
-          <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Provincia elegida a mano.</Text>
-        ) : null}
-        <Fila etiqueta="Envolvente térmica final" valor={exp.superficieEnvolventeM2 === undefined ? '—' : `${formatoNumero(exp.superficieEnvolventeM2)} m²`} />
-        <Fila etiqueta="Cliente" valor={[exp.cliente.nombre, exp.cliente.nifNie].filter(Boolean).join(' · ') || '—'} />
-        <Fila etiqueta="Contacto" valor={[exp.cliente.telefono, exp.cliente.email].filter(Boolean).join(' · ') || '—'} />
-        <Fila etiqueta="Propietario del ahorro" valor={exp.propietarioAhorro || '—'} />
-        <Fila etiqueta="Representante del solicitante" valor={[exp.representante.nombre, exp.representante.nifNie].filter(Boolean).join(' · ') || '—'} />
-        <Fila etiqueta="Inicio · fin de la actuación" valor={`${exp.fechaInicio ? isoAFecha(exp.fechaInicio) : '—'} · ${exp.fechaFin ? isoAFecha(exp.fechaFin) : '—'}`} />
-        <Fila etiqueta="Duración indicativa Di" valor={exp.duracionAnios === undefined ? '—' : `${formatoNumero(exp.duracionAnios, 0)} años`} />
-        {exp.notas ? <Fila etiqueta="Notas" valor={exp.notas} /> : null}
-      </Seccion>
-
-      <Seccion titulo={`Documentación justificativa (${docsHechos}/${DOCUMENTOS.length})`} ayuda="Lista de comprobación del apartado 5 de la ficha.">
-        {DOCUMENTOS.map((doc) => (
-          <Interruptor
-            key={doc.clave}
-            etiqueta={doc.etiqueta}
-            valor={exp.documentacion[doc.clave]}
-            onChange={(v) => {
-              const { id: _i, ventanas: _v, creadoEn: _c, actualizadoEn: _a, ...b } = exp;
-              actualizarExpediente(exp.id, { ...b, documentacion: { ...exp.documentacion, [doc.clave]: v } });
-            }}
-          />
-        ))}
-      </Seccion>
     </Pantalla>
   );
 }

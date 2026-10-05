@@ -1,13 +1,13 @@
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { borradorVacio } from '@/domain/fabrica';
+import { borradorExpedienteVacio } from '@/domain/fabrica';
 import { useAlmacen } from '@/store/almacen';
 import { FormularioExpediente } from '@/ui/FormularioExpediente';
 
 export default function NuevoExpediente() {
   const router = useRouter();
   const { crearExpediente } = useAlmacen();
-  const [inicial] = useState(borradorVacio);
+  const [inicial] = useState(borradorExpedienteVacio);
   return (
     <>
       <Stack.Screen options={{ title: 'Nuevo expediente' }} />

@@ -18,12 +18,12 @@ const CLASES = [
 ] as const;
 
 export default function FormularioVentana() {
-  const { id, ventanaId } = useLocalSearchParams<{ id: string; ventanaId: string }>();
-  const { cargado, obtenerExpediente } = useAlmacen();
-  const exp = obtenerExpediente(id);
+  const { id, actuacionId, ventanaId } = useLocalSearchParams<{ id: string; actuacionId: string; ventanaId: string }>();
+  const { cargado, obtenerActuacion } = useAlmacen();
+  const act = obtenerActuacion(id, actuacionId);
   if (!cargado) return <Cargando />;
-  const existente = exp?.ventanas.find((v) => v.id === ventanaId);
-  if (!exp || (ventanaId !== 'nueva' && !existente))
+  const existente = act?.ventanas.find((v) => v.id === ventanaId);
+  if (!act || (ventanaId !== 'nueva' && !existente))
     return (
       <Pantalla>
         <Tarjeta>
@@ -31,24 +31,41 @@ export default function FormularioVentana() {
         </Tarjeta>
       </Pantalla>
     );
-  return <Editor expedienteId={exp.id} ventanaInicial={existente ?? ventanaVacia(exp.ventanas.length + 1)} esNueva={!existente} />;
+  return (
+    <Editor
+      expedienteId={id}
+      actuacionId={act.id}
+      ventanaInicial={existente ?? ventanaVacia(act.ventanas.length + 1)}
+      esNueva={!existente}
+    />
+  );
 }
 
-function Editor({ expedienteId, ventanaInicial, esNueva }: { expedienteId: string; ventanaInicial: Ventana; esNueva: boolean }) {
+function Editor({
+  expedienteId,
+  actuacionId,
+  ventanaInicial,
+  esNueva,
+}: {
+  expedienteId: string;
+  actuacionId: string;
+  ventanaInicial: Ventana;
+  esNueva: boolean;
+}) {
   const router = useRouter();
-  const { obtenerExpediente, parametros, guardarVentana } = useAlmacen();
-  const exp = obtenerExpediente(expedienteId)!;
+  const { obtenerActuacion, parametros, guardarVentana } = useAlmacen();
+  const act = obtenerActuacion(expedienteId, actuacionId)!;
   const [v, setV] = useState<Ventana>(ventanaInicial);
   const setNueva = <K extends keyof Ventana['nueva']>(k: K, val: Ventana['nueva'][K]) => setV((x) => ({ ...x, nueva: { ...x.nueva, [k]: val } }));
   const set = <K extends keyof Ventana>(k: K, val: Ventana[K]) => setV((x) => ({ ...x, [k]: val }));
 
-  const desglose = useMemo(() => desglosarVentana(v, { ...exp, ventanas: [v] }, parametros), [v, exp, parametros]);
+  const desglose = useMemo(() => desglosarVentana(v, { ...act, ventanas: [v] }, parametros), [v, act, parametros]);
   const metalico = esMarcoMetalico(v);
 
   const guardar = (otra: boolean) => {
     const limpia = { ...v, etiqueta: v.etiqueta.trim() || 'Ventana', unidades: v.unidades > 0 ? Math.round(v.unidades) : 1 };
-    guardarVentana(expedienteId, limpia);
-    if (otra) setV(ventanaVacia(exp.ventanas.length + 2));
+    guardarVentana(expedienteId, actuacionId, limpia);
+    if (otra) setV(ventanaVacia(act.ventanas.length + 2));
     else router.back();
   };
 
@@ -132,16 +149,12 @@ function Editor({ expedienteId, ventanaInicial, esNueva }: { expedienteId: strin
           valor={v.nueva.clasePermeabilidad}
           onChange={(x) => setNueva('clasePermeabilidad', (x ?? 0) as ClasePermeabilidad)}
           ayuda={
-            exp.zonaInvierno
-              ? `Zona ${exp.zonaInvierno}: se exige ≤ ${parametros.permeabilidadMaxPorZona[exp.zonaInvierno]} m³/h·m² a 100 Pa.`
-              : 'Indica la zona climática en el expediente para validar el requisito.'
+            act.zonaInvierno
+              ? `Zona ${act.zonaInvierno}: se exige ≤ ${parametros.permeabilidadMaxPorZona[act.zonaInvierno]} m³/h·m² a 100 Pa.`
+              : 'Indica la zona climática en la actuación para validar el requisito.'
           }
         />
-        <Interruptor
-          etiqueta="Declaración de prestaciones y marcado CE"
-          valor={v.nueva.marcadoCE}
-          onChange={(x) => setNueva('marcadoCE', x)}
-        />
+        <Interruptor etiqueta="Declaración de prestaciones y marcado CE" valor={v.nueva.marcadoCE} onChange={(x) => setNueva('marcadoCE', x)} />
         <Interruptor etiqueta="Incluye persiana" valor={v.nueva.tienePersiana} onChange={(x) => setNueva('tienePersiana', x)} />
         {v.nueva.tienePersiana ? (
           <>

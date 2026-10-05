@@ -61,30 +61,109 @@ export interface Representante {
   nifNie: string;
 }
 
-export interface DocumentacionChecklist {
-  fichaFirmada: boolean;
-  declaracionResponsable: boolean;
-  facturas: boolean;
-  informeFotografico: boolean;
-  certificadoDirectorObra: boolean;
-  certificadoEficienciaEnergetica: boolean;
-  declaracionPrestacionesCE: boolean;
+/** Sujeto obligado o delegado del expediente (contrato a nivel expediente). */
+export interface SujetoObligado {
+  tipo: 'obligado' | 'delegado';
+  razonSocial: string;
+  nifNie: string;
+  domicilio: string;
+  email: string;
+  telefono: string;
+  /** Representante legal que firma la ficha. */
+  representante: Representante;
 }
 
-export type EstadoExpediente = 'borrador' | 'en-curso' | 'finalizado';
+export const TIPOS_DOCUMENTO = [
+  {
+    clave: 'fichaFirmada',
+    etiqueta: 'Ficha cumplimentada y firmada',
+    ayuda: 'Ficha firmada por el representante legal del solicitante de la emisión de CAE.',
+  },
+  {
+    clave: 'declaracionResponsable',
+    etiqueta: 'Declaración responsable (Anexo I)',
+    ayuda: 'Formalizada por el propietario inicial del ahorro sobre ayudas públicas para la misma actuación.',
+  },
+  {
+    clave: 'facturas',
+    etiqueta: 'Facturas justificativas',
+    ayuda: 'Facturas de la inversión con descripción detallada de los elementos principales.',
+  },
+  {
+    clave: 'informeFotografico',
+    etiqueta: 'Informe fotográfico',
+    ayuda: 'Antes y después de la actuación, con identificación de los huecos y ventanas afectados.',
+  },
+  {
+    clave: 'certificadoDirectorObra',
+    etiqueta: 'Certificado de dirección de obra',
+    ayuda:
+      'Incluye: a) cálculo de la envolvente del edificio y de la superficie actuada; b) transmitancias antes y después; c) variables de la fórmula del apartado 3.',
+  },
+  {
+    clave: 'certificadoEficienciaEnergetica',
+    etiqueta: 'Certificado de eficiencia energética',
+    ayuda:
+      'Certificado final del edificio con justificante de registro. Alternativamente, el del estado previo justo antes de la actuación (con registro) que incluya como mejora la actuación objeto del ahorro.',
+  },
+  {
+    clave: 'declaracionPrestacionesCE',
+    etiqueta: 'Declaración de prestaciones y marcado CE',
+    ayuda: 'Declaración de prestaciones y marcado CE de las ventanas instaladas.',
+  },
+] as const;
 
+export type ClaveDocumento = (typeof TIPOS_DOCUMENTO)[number]['clave'];
+
+/** Archivo adjunto a un tipo documental de la actuación. */
+export interface Adjunto {
+  id: string;
+  nombre: string;
+  mime: string;
+  tamanoBytes: number;
+  /** Contenido en base64 (sin prefijo data:). Vacío si no se persistió el binario. */
+  contenidoBase64: string;
+  subidoEn: string;
+}
+
+export type DocumentacionActuacion = Record<ClaveDocumento, Adjunto[]>;
+
+/** Estado administrativo del expediente (verificación CAE). */
+export type EstadoExpediente = 'borrador' | 'en-elaboracion' | 'verificado';
+
+/** Estado de la obra en una actuación concreta. */
+export type EstadoObra = 'en-elaboracion' | 'finalizada';
+
+/**
+ * Expediente CAE: contenedor de actuaciones + sujeto obligado/delegado.
+ * El cálculo total es la suma de las actuaciones.
+ */
 export interface Expediente {
   id: string;
-  /** Código o nombre interno del expediente. */
+  /** Código o nombre interno / nº de referencia del expediente. */
   referencia: string;
   estado: EstadoExpediente;
-  /** Referencia catastral: agrupa las ventanas (n) de la fórmula. */
+  sujeto: SujetoObligado;
+  notas: string;
+  actuaciones: Actuacion[];
+  creadoEn: string;
+  actualizadoEn: string;
+}
+
+/**
+ * Unidad de trabajo: un inmueble / referencia catastral con sus ventanas y documentación.
+ */
+export interface Actuacion {
+  id: string;
+  /** Etiqueta corta (p. ej. "Vivienda Calle Mayor 12"). */
+  etiqueta: string;
+  estadoObra: EstadoObra;
   referenciaCatastral: string;
   direccion: string;
   codigoPostal: string;
   municipio: string;
   provincia: string;
-  /** Código de provincia (dos primeros dígitos del código postal); clave de la tabla de zonas. */
+  /** Código de provincia (dos primeros dígitos del CP); clave de la tabla de zonas. */
   provinciaCodigo: string;
   ubicacion: Ubicacion;
   altitudM?: number;
@@ -99,15 +178,14 @@ export interface Expediente {
   superficieEnvolventeM2?: number;
   cliente: Cliente;
   propietarioAhorro: string;
-  representante: Representante;
-  /** Sustituye al Fp de ajustes sólo en este expediente (vacío = usar ajustes). */
+  /** Sustituye al Fp de ajustes sólo en esta actuación (vacío = usar ajustes). */
   fpPersonalizado?: number;
-  /** Di: duración indicativa de la actuación (años). Sólo administrativo. */
+  /** Di: duración indicativa (años). Sólo administrativo salvo ajuste opcional. */
   duracionAnios?: number;
   /** Fechas ISO (AAAA-MM-DD). */
   fechaInicio: string;
   fechaFin: string;
-  documentacion: DocumentacionChecklist;
+  documentacion: DocumentacionActuacion;
   notas: string;
   ventanas: Ventana[];
   creadoEn: string;
@@ -125,13 +203,11 @@ export interface Ventana {
   unidades: number;
   /** Superficie del hueco por unidad (m²). */
   superficieM2?: number;
-  /** Situación anterior. */
   anterior: {
     descripcion: string;
     /** Uhi (W/m²·K). */
     transmitancia?: number;
   };
-  /** Situación nueva. */
   nueva: {
     descripcion: string;
     /** Uhf (W/m²·K). */
@@ -147,4 +223,22 @@ export interface Ventana {
   notas: string;
 }
 
-export type ExpedienteBorrador = Omit<Expediente, 'id' | 'creadoEn' | 'actualizadoEn' | 'ventanas'>;
+export type ExpedienteBorrador = Omit<Expediente, 'id' | 'creadoEn' | 'actualizadoEn' | 'actuaciones'>;
+export type ActuacionBorrador = Omit<Actuacion, 'id' | 'creadoEn' | 'actualizadoEn' | 'ventanas'>;
+
+/** Campos de clima / emplazamiento editables en SeccionClima. */
+export type CamposClima = Pick<
+  Actuacion,
+  | 'direccion'
+  | 'codigoPostal'
+  | 'municipio'
+  | 'provincia'
+  | 'provinciaCodigo'
+  | 'ubicacion'
+  | 'altitudM'
+  | 'latitud'
+  | 'longitud'
+  | 'origenClima'
+  | 'zonaInvierno'
+  | 'zonaVerano'
+>;

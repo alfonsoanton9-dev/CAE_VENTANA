@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native';
-import type { DesgloseVentana, ResultadoExpediente } from '@/domain/calculo';
+import type { DesgloseVentana, ResultadoActuacion } from '@/domain/calculo';
 import { formatoNumero } from '@/domain/formato';
 import type { Parametros } from '@/domain/parametros';
 import { Fila } from './componentes';
@@ -35,7 +35,7 @@ export function DesgloseLineaVentana({ d }: { d: DesgloseVentana }) {
   );
 }
 
-export function TablaDesglose({ r, p }: { r: ResultadoExpediente; p: Parametros }) {
+export function TablaDesglose({ r, p }: { r: ResultadoActuacion; p: Parametros }) {
   return (
     <View style={{ gap: 14 }}>
       <View style={{ padding: 12, borderRadius: 10, backgroundColor: color.primarioSuave, gap: 4 }}>

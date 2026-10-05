@@ -10,7 +10,7 @@ import {
   validarTramos,
   zonaPorAltitud,
 } from '../src/domain/zonasClimaticas';
-import { normalizarExpediente } from '../src/domain/fabrica';
+import { normalizarActuacion, normalizarExpediente } from '../src/domain/fabrica';
 import { normalizarParametros, VERSION_PARAMETROS } from '../src/domain/parametros';
 
 const tabla = tablaZonasOficial();
@@ -94,17 +94,28 @@ describe('Migración de parámetros y expedientes', () => {
     expect(normalizarParametros({ version: 2, ignorarAhorrosNegativos: false }).ignorarAhorrosNegativos).toBe(false);
   });
 
-  it('normalizarExpediente añade origenClima', () => {
-    const e = normalizarExpediente({
+  it('normalizarActuacion añade origenClima', () => {
+    const a = normalizarActuacion({
       id: '1',
-      referencia: 'X',
+      etiqueta: 'X',
       zonaInvierno: 'C',
       zonaVerano: 3,
       ventanas: [],
       creadoEn: '',
       actualizadoEn: '',
     } as any);
-    expect(e.origenClima.zona).toBe('manual');
-    expect(e.provinciaCodigo).toBe('');
+    expect(a.origenClima.zona).toBe('manual');
+    expect(a.provinciaCodigo).toBe('');
+  });
+
+  it('normalizarExpediente rellena sujeto y actuaciones', () => {
+    const e = normalizarExpediente({
+      id: '1',
+      referencia: 'X',
+      creadoEn: '',
+      actualizadoEn: '',
+    } as any);
+    expect(e.sujeto.tipo).toBe('obligado');
+    expect(e.actuaciones).toEqual([]);
   });
 });
