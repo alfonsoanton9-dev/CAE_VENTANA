@@ -494,21 +494,25 @@ function PestanaExpediente({
         <Text style={{ color: color.primario, fontWeight: '700', fontSize: 13 }}>Pestaña Expediente CAE</Text>
         <Text style={{ color: color.textoSuave, fontSize: 12.5, marginTop: 2 }}>
           {intermediario
-            ? 'SO/SD, fee, gestor y propietario inicial del CAE (en actuaciones).'
-            : 'SO/SD comprador e importe de venta del CAE (tu ROI).'}
+            ? 'SO/SD, PRECIO AHORRO CAE, fee, gestor y propietario inicial (en actuaciones).'
+            : 'SO/SD, PRECIO AHORRO CAE (tu ROI = MWh × ese precio) y certificadora.'}
         </Text>
       </View>
 
       <Tarjeta>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: color.texto, marginBottom: 4 }}>
-          {intermediario ? 'Retorno económico (fee intermediario/instalador)' : 'Retorno económico (venta del CAE)'}
-        </Text>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: color.texto, marginBottom: 4 }}>PRECIO AHORRO CAE y retorno</Text>
         <Text style={{ color: color.textoSuave, fontSize: 12.5, marginBottom: 12 }}>
+          PRECIO AHORRO CAE = €/MWh·año que el SO/SD/intermediario paga al propietario inicial por el ahorro del expediente.
           {intermediario
-            ? 'ROI = MWh/año × fee (€ por MWh·año de los expedientes generados).'
-            : 'ROI = importe de venta = ahorro (MWh/año) × precio (€/MWh·año). Sin fee.'}
+            ? ' Tu ROI = MWh/año × fee (€/MWh·año).'
+            : ' Tu ROI = MWh/año × PRECIO AHORRO CAE.'}
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 18 }}>
+          <DatoEco
+            titulo="PRECIO AHORRO CAE"
+            valor={precio === undefined ? '—' : `${formatoNumero(precio)} €/MWh·año`}
+            sub="Pago al propietario inicial por MWh/año"
+          />
           {intermediario ? (
             <DatoEco
               titulo="Fee pactado"
@@ -519,13 +523,7 @@ function PestanaExpediente({
               }
               sub="€ por MWh·año de los expedientes generados"
             />
-          ) : (
-            <DatoEco
-              titulo="Precio de venta"
-              valor={precio === undefined ? '—' : `${formatoNumero(precio)} €/MWh·año`}
-              sub="Negociado por el propietario inicial"
-            />
-          )}
+          ) : null}
           <DatoEco
             titulo="ROI €"
             valor={r.retornoEconomicoEur === null ? '—' : `${formatoNumero(r.retornoEconomicoEur)} €`}
@@ -536,14 +534,14 @@ function PestanaExpediente({
                   : 'Falta fee pactado (€/MWh·año)'
                 : precio !== undefined
                   ? `${formatoNumero(r.energiaMWhAnio, 3)} MWh/año × ${formatoNumero(precio)} €/MWh·año`
-                  : 'Falta precio de venta €/MWh·año'
+                  : 'Falta PRECIO AHORRO CAE (€/MWh·año)'
             }
             destacado
           />
         </View>
         {intermediario && precio !== undefined ? (
           <Text style={{ color: color.textoSuave, fontSize: 12.5, marginTop: 10 }}>
-            Precio pactado con el SO/SD: {formatoNumero(precio)} €/MWh·año · Valor bruto venta:{' '}
+            Valor bruto al propietario (PRECIO AHORRO CAE × MWh):{' '}
             {r.valorBrutoPropietarioEur === null ? '—' : `${formatoNumero(r.valorBrutoPropietarioEur)} €`}
           </Text>
         ) : null}
@@ -630,7 +628,7 @@ function PestanaExpediente({
 
       <Seccion titulo="Parámetros económicos">
         <Fila
-          etiqueta={intermediario ? 'Precio €/MWh·año (SO/SD)' : 'Precio de venta €/MWh·año'}
+          etiqueta="PRECIO AHORRO CAE"
           valor={precio === undefined ? '—' : `${formatoNumero(precio)} €/MWh·año`}
         />
         {intermediario ? (

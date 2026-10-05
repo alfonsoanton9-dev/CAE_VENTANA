@@ -338,9 +338,7 @@ export function calcularExpediente(
   if (e.valorEconomicoEurPorMWhAnio === undefined)
     avisos.push({
       gravedad: 'aviso',
-      mensaje: intermediario
-        ? 'Indica el precio €/MWh·año pactado con el sujeto obligado/delegado (importe de venta del CAE).'
-        : 'Indica el precio €/MWh·año de venta del CAE (tu ROI es el importe de venta).',
+      mensaje: 'Indica el PRECIO AHORRO CAE (€/MWh·año): precio que el SO/SD/intermediario paga al propietario inicial por cada MWh/año del expediente.',
     });
   if (eco.energiaMWhAnio < p.minimoMwhVerificacion) {
     avisos.push({

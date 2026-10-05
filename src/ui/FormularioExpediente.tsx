@@ -175,19 +175,16 @@ export function FormularioExpediente({
       )}
 
       <Seccion
-        titulo={intermediario ? 'Retorno económico (fee intermediario/instalador)' : 'Retorno económico (venta del CAE)'}
-        ayuda={
-          intermediario
-            ? 'ROI = MWh/año × fee (€/MWh·año). El fee es el precio pactado por cada MWh aportado a la plataforma.'
-            : 'ROI = importe de venta = ahorro (MWh/año) × precio (€/MWh·año). No hay fee de intermediario.'
-        }
+        titulo="PRECIO AHORRO CAE"
+        ayuda="Precio que el sujeto obligado / delegado / intermediario paga al propietario inicial por cada MWh/año de ahorro de este expediente. Se fija en el expediente."
       >
         <CampoNumero
-          etiqueta={intermediario ? 'Precio €/MWh·año (SO/SD)' : 'Precio de venta €/MWh·año'}
+          etiqueta="PRECIO AHORRO CAE"
           unidad="€/MWh·año"
           valor={d.valorEconomicoEurPorMWhAnio}
           onChange={(v) => setD((x) => ({ ...x, valorEconomicoEurPorMWhAnio: v }))}
-          ayuda={intermediario ? 'Precio del MWh·año pactado con el comprador del CAE.' : 'Precio al que vendes el CAE. Tu ROI es este importe × MWh.'}
+          ayuda="Importe unitario del ahorro CAE: € que recibe el propietario inicial por cada MWh/año del expediente."
+          requerido
         />
         {intermediario ? (
           <CampoNumero
@@ -195,9 +192,11 @@ export function FormularioExpediente({
             unidad="€ por MWh·año de los expedientes generados"
             valor={d.feeIntermediarioEurPorMWhAnio}
             onChange={(v) => setD((x) => ({ ...x, feeIntermediarioEurPorMWhAnio: v }))}
-            ayuda="Prellenado desde tu perfil si lo tienes guardado. ROI = MWh/año × fee."
+            ayuda="Tu retorno como intermediario/instalador (prellenado desde el perfil si lo tienes). ROI = MWh/año × fee."
           />
-        ) : null}
+        ) : (
+          <Nota tono="ok" texto="Como propietario inicial tu ROI = MWh/año × PRECIO AHORRO CAE. No aplica fee de intermediario." />
+        )}
       </Seccion>
 
       <Seccion titulo="Contrato de compraventa del CAE" ayuda="Adjunta el contrato de compraventa del CAE de este expediente.">

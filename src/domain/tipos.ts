@@ -157,8 +157,10 @@ export interface Expediente {
   /** Instalador, montador o partner que gestiona la documentación del CAE. */
   gestor: GestorCae;
   /**
-   * Precio €/MWh·año conseguido con el sujeto obligado/delegado (importe de venta del CAE).
-   * ROI del propietario inicial = MWh × este precio.
+   * PRECIO AHORRO CAE [€/MWh·año]:
+   * precio que el sujeto obligado / delegado / intermediario abona al propietario inicial
+   * por cada MWh/año de ahorro del expediente. Se define en cada expediente.
+   * ROI propietario = MWh/año × este precio.
    */
   valorEconomicoEurPorMWhAnio?: number;
   /**
