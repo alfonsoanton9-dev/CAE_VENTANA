@@ -2,8 +2,10 @@ import type {
   Actuacion,
   ActuacionBorrador,
   DocumentacionActuacion,
+  EstadoExpediente,
   Expediente,
   ExpedienteBorrador,
+  GestorCae,
   SujetoObligado,
   Ventana,
 } from './tipos';
@@ -36,11 +38,31 @@ export function sujetoVacio(): SujetoObligado {
   };
 }
 
+export function gestorVacio(): GestorCae {
+  return {
+    rol: 'instalador',
+    razonSocial: '',
+    nifNie: '',
+    telefono: '',
+    email: '',
+  };
+}
+
+function migrarEstado(estado: string | undefined): EstadoExpediente {
+  if (estado === 'en-verificacion' || estado === 'verificado' || estado === 'vendido-cobrado' || estado === 'borrador') return estado;
+  if (estado === 'finalizado') return 'verificado';
+  if (estado === 'en-elaboracion' || estado === 'en-curso') return 'en-verificacion';
+  return 'borrador';
+}
+
 export function borradorExpedienteVacio(): ExpedienteBorrador {
   return {
     referencia: '',
     estado: 'borrador',
     sujeto: sujetoVacio(),
+    gestor: gestorVacio(),
+    valorEconomicoEurPorMWhAnio: undefined,
+    feeIntermediarioPct: undefined,
     notas: '',
   };
 }
@@ -92,6 +114,7 @@ export function nuevaActuacion(borrador: ActuacionBorrador): Actuacion {
 export function ventanaVacia(numero = 1): Ventana {
   return {
     id: generarId(),
+    codigoInstalador: '',
     etiqueta: `V${numero}`,
     tipo: 'ventana',
     estancia: '',
@@ -99,6 +122,8 @@ export function ventanaVacia(numero = 1): Ventana {
     orientacion: undefined,
     unidades: 1,
     superficieM2: undefined,
+    fotoAntes: undefined,
+    fotoDespues: undefined,
     anterior: { descripcion: '', transmitancia: undefined },
     nueva: {
       descripcion: '',
@@ -149,7 +174,9 @@ export function duplicarExpediente(e: Expediente): Expediente {
 export function normalizarExpediente(e: Expediente): Expediente {
   return {
     ...e,
+    estado: migrarEstado(e.estado),
     sujeto: e.sujeto ?? sujetoVacio(),
+    gestor: e.gestor ?? gestorVacio(),
     actuaciones: (e.actuaciones ?? []).map(normalizarActuacion),
   };
 }
@@ -175,7 +202,14 @@ export function normalizarActuacion(a: Actuacion): Actuacion {
       certificadoEficienciaEnergetica: docs.certificadoEficienciaEnergetica ?? [],
       declaracionPrestacionesCE: docs.declaracionPrestacionesCE ?? [],
     },
-    ventanas: a.ventanas ?? [],
+    ventanas: (a.ventanas ?? []).map(normalizarVentana),
+  };
+}
+
+export function normalizarVentana(v: Ventana): Ventana {
+  return {
+    ...v,
+    codigoInstalador: v.codigoInstalador ?? '',
   };
 }
 
@@ -195,6 +229,7 @@ export function crearExpedienteTutorial(): Expediente {
   const ahora = new Date().toISOString();
   const v1: Ventana = {
     ...ventanaVacia(1),
+    codigoInstalador: 'INST-MAD-001',
     etiqueta: 'V1 – Salón',
     tipo: 'ventana',
     estancia: 'Salón',
@@ -218,6 +253,7 @@ export function crearExpedienteTutorial(): Expediente {
   };
   const v2: Ventana = {
     ...ventanaVacia(2),
+    codigoInstalador: 'INST-MAD-002',
     etiqueta: 'V2 – Dormitorio',
     tipo: 'ventana',
     estancia: 'Dormitorio principal',
@@ -241,6 +277,7 @@ export function crearExpedienteTutorial(): Expediente {
   };
   const v3: Ventana = {
     ...ventanaVacia(3),
+    codigoInstalador: 'INST-MAD-003',
     etiqueta: 'V3 – Cocina (puerta-ventana)',
     tipo: 'puerta-ventana',
     estancia: 'Cocina',
@@ -379,9 +416,9 @@ export function crearExpedienteTutorial(): Expediente {
   return {
     id: generarId(),
     referencia: 'CAE-TUTORIAL-2026-001',
-    estado: 'en-elaboracion',
+    estado: 'en-verificacion',
     sujeto: {
-      tipo: 'delegado',
+      tipo: 'intermediario',
       razonSocial: 'Energía Eficiencia del Centro, S.L.',
       nifNie: 'B12345678',
       domicilio: 'Paseo de la Castellana 100, 28046 Madrid',
@@ -389,6 +426,15 @@ export function crearExpedienteTutorial(): Expediente {
       telefono: '910000111',
       representante: { nombre: 'Carlos Ruiz Méndez', nifNie: '87654321X' },
     },
+    gestor: {
+      rol: 'instalador',
+      razonSocial: 'Ventanas del Centro, S.L.',
+      nifNie: 'B87654321',
+      telefono: '910000222',
+      email: 'obras@ventanas-ejemplo.es',
+    },
+    valorEconomicoEurPorMWhAnio: 120,
+    feeIntermediarioPct: 15,
     notas:
       'Expediente de ejemplo para aprender la app. Contiene dos actuaciones: una finalizada con documentación y otra en elaboración. Puedes editarlo o eliminarlo.',
     actuaciones: [actuacion1, actuacion2],

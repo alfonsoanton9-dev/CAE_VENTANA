@@ -154,6 +154,18 @@ describe('Fórmula AE = Fp · Σ (Uhi − Uhf) · S · G', () => {
     expect(r.cae).toBeCloseTo(r1.cae + r2.cae, 6);
     expect(r.ventanasTotales).toBe(2);
   });
+
+  it('impacto económico = MWh × €/MWh × fee%', () => {
+    const e = expediente('C', 3, [ventana(4, 2, 1)]);
+    e.valorEconomicoEurPorMWhAnio = 100;
+    e.feeIntermediarioPct = 10;
+    const r = calcularExpediente(e, parametrosPorDefecto());
+    // AE = 92 kWh/año = 0,092 MWh → bruto 9,2 € → fee 0,92 €
+    expect(r.aeTotal).toBeCloseTo(92, 9);
+    expect(r.energiaMWhAnio).toBeCloseTo(0.092, 9);
+    expect(r.valorBrutoPropietarioEur).toBeCloseTo(9.2, 6);
+    expect(r.impactoEconomicoIntermediarioEur).toBeCloseTo(0.92, 6);
+  });
 });
 
 describe('Requisitos de la ficha', () => {

@@ -62,8 +62,40 @@ export interface ResultadoExpediente {
   aeTotal: number;
   /** Σ CAE de todas las actuaciones. */
   cae: number;
+  /** AE en MWh/año (para el valor económico €/MWh·año). */
+  energiaMWhAnio: number;
+  /**
+   * Impacto económico del intermediario/instalador [€]:
+   * (AE_kWh/1000) × valorEconomicoEurPorMWhAnio × (feeIntermediarioPct/100).
+   * null si faltan parámetros.
+   */
+  impactoEconomicoIntermediarioEur: number | null;
+  /** Valor bruto al propietario del CAE [€] = MWh × €/MWh (sin fee). */
+  valorBrutoPropietarioEur: number | null;
   avisos: Aviso[];
   cumple: boolean;
+}
+
+export function impactoEconomicoExpediente(
+  aeTotalKwhAnio: number,
+  valorEconomicoEurPorMWhAnio: number | undefined,
+  feeIntermediarioPct: number | undefined,
+): { energiaMWhAnio: number; valorBrutoPropietarioEur: number | null; impactoEconomicoIntermediarioEur: number | null } {
+  const energiaMWhAnio = aeTotalKwhAnio / 1000;
+  const precio = valorEconomicoEurPorMWhAnio;
+  const fee = feeIntermediarioPct;
+  if (precio === undefined || !Number.isFinite(precio) || precio < 0) {
+    return { energiaMWhAnio, valorBrutoPropietarioEur: null, impactoEconomicoIntermediarioEur: null };
+  }
+  const valorBruto = energiaMWhAnio * precio;
+  if (fee === undefined || !Number.isFinite(fee) || fee < 0) {
+    return { energiaMWhAnio, valorBrutoPropietarioEur: valorBruto, impactoEconomicoIntermediarioEur: null };
+  }
+  return {
+    energiaMWhAnio,
+    valorBrutoPropietarioEur: valorBruto,
+    impactoEconomicoIntermediarioEur: valorBruto * (fee / 100),
+  };
 }
 
 export function esMarcoMetalico(v: Ventana): boolean {
@@ -251,9 +283,25 @@ export function calcularExpediente(e: Expediente, p: Parametros): ResultadoExped
   const superficieHuecos = actuaciones.reduce((acc, r) => acc + r.superficieHuecos, 0);
   const ventanasCalculadas = actuaciones.reduce((acc, r) => acc + r.ventanasCalculadas, 0);
   const ventanasTotales = e.actuaciones.reduce((acc, a) => acc + a.ventanas.length, 0);
+  const eco = impactoEconomicoExpediente(aeTotal, e.valorEconomicoEurPorMWhAnio, e.feeIntermediarioPct);
   const avisos: Aviso[] = [];
   if (e.actuaciones.length === 0) avisos.push({ gravedad: 'aviso', mensaje: 'El expediente no tiene actuaciones todavía.' });
-  if (!e.sujeto.razonSocial.trim()) avisos.push({ gravedad: 'aviso', mensaje: 'Indica el sujeto obligado o delegado del expediente.' });
+  if (!e.sujeto.razonSocial.trim()) avisos.push({ gravedad: 'aviso', mensaje: 'Indica el sujeto obligado, delegado o intermediario del expediente.' });
+  if (!e.gestor?.razonSocial?.trim()) avisos.push({ gravedad: 'aviso', mensaje: 'Indica el instalador, montador o partner que gestiona el CAE.' });
+  if (e.valorEconomicoEurPorMWhAnio === undefined) avisos.push({ gravedad: 'aviso', mensaje: 'Indica el valor económico del CAE (€/MWh·año) para calcular el impacto económico.' });
+  if (e.feeIntermediarioPct === undefined) avisos.push({ gravedad: 'aviso', mensaje: 'Indica el fee del intermediario/instalador (%) para el impacto económico.' });
   const cumple = avisos.every((a) => a.gravedad !== 'error') && actuaciones.every((r) => r.cumple);
-  return { actuaciones, ventanasCalculadas, ventanasTotales, superficieHuecos, aeTotal, cae, avisos, cumple };
+  return {
+    actuaciones,
+    ventanasCalculadas,
+    ventanasTotales,
+    superficieHuecos,
+    aeTotal,
+    cae,
+    energiaMWhAnio: eco.energiaMWhAnio,
+    impactoEconomicoIntermediarioEur: eco.impactoEconomicoIntermediarioEur,
+    valorBrutoPropietarioEur: eco.valorBrutoPropietarioEur,
+    avisos,
+    cumple,
+  };
 }

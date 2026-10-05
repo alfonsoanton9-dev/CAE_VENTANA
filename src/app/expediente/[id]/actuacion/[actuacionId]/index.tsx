@@ -121,8 +121,11 @@ export default function DetalleActuacion() {
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontWeight: '700', fontSize: 15.5, color: color.texto }}>{v.etiqueta || 'Sin etiqueta'}</Text>
                       <Text style={{ color: color.textoSuave, fontSize: 13 }}>
-                        {[v.estancia, v.planta && `Planta ${v.planta}`, v.orientacion, v.nueva.materialMarco].filter(Boolean).join(' · ') || 'Sin ubicación'}
+                        {[v.estancia, v.planta && `Planta ${v.planta}`, v.orientacion, v.nueva.materialMarco, v.codigoInstalador && `Cód. ${v.codigoInstalador}`]
+                          .filter(Boolean)
+                          .join(' · ') || 'Sin ubicación'}
                       </Text>
+                      <Text style={{ color: color.textoSuave, fontSize: 11.5 }}>ID {v.id}</Text>
                     </View>
                     <BotonIcono icono="create-outline" etiqueta={`Editar ${v.etiqueta}`} onPress={() => router.push(`/expediente/${exp.id}/actuacion/${act.id}/ventana/${v.id}`)} />
                     <BotonIcono icono="copy-outline" etiqueta={`Duplicar ${v.etiqueta}`} onPress={() => duplicarVentana(exp.id, act.id, v.id)} />

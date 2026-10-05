@@ -1,19 +1,21 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Text, View } from 'react-native';
+import { accionAvanceEstado, siguienteEstadoExpediente } from '@/domain/adjuntos';
 import { calcularExpediente } from '@/domain/calculo';
 import { TIPOS_DOCUMENTO } from '@/domain/tipos';
 import { formatoNumero } from '@/domain/formato';
 import { useAlmacen } from '@/store/almacen';
 import { Boton, BotonIcono, Cargando, Fila, Insignia, ListaAvisos, Pantalla, Seccion, Tarjeta, useConfirmar, Vacio } from '@/ui/componentes';
-import { etiquetaEstado, etiquetaEstadoObra, tonoEstado, tonoEstadoObra } from '@/ui/estado';
+import { etiquetaEstado, etiquetaEstadoObra, etiquetaRolGestor, etiquetaTipoSujeto, tonoEstado, tonoEstadoObra } from '@/ui/estado';
 import { color } from '@/ui/tema';
 
 export default function DetalleExpediente() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const confirmar = useConfirmar();
-  const { cargado, obtenerExpediente, parametros, duplicarExpediente, eliminarExpediente, duplicarActuacion, eliminarActuacion } = useAlmacen();
+  const { cargado, obtenerExpediente, parametros, actualizarExpediente, duplicarExpediente, eliminarExpediente, duplicarActuacion, eliminarActuacion } =
+    useAlmacen();
   const exp = obtenerExpediente(id);
   const r = useMemo(() => (exp ? calcularExpediente(exp, parametros) : null), [exp, parametros]);
 
@@ -30,6 +32,11 @@ export default function DetalleExpediente() {
     );
 
   const s = exp.sujeto;
+  const g = exp.gestor;
+  const siguiente = siguienteEstadoExpediente(exp.estado);
+  const accion = accionAvanceEstado(exp.estado);
+  const { id: _id, actuaciones: _act, creadoEn: _c, actualizadoEn: _u, ...borrador } = exp;
+  const propietarios = [...new Set(exp.actuaciones.map((a) => a.propietarioAhorro || a.cliente.nombre).filter(Boolean))];
 
   return (
     <Pantalla>
@@ -42,7 +49,9 @@ export default function DetalleExpediente() {
             <Text testID="cae-total" style={{ color: '#fff', fontSize: 38, fontWeight: '800' }}>
               {formatoNumero(r.cae)}
             </Text>
-            <Text style={{ color: '#CFE2F7' }}>{formatoNumero(r.aeTotal)} kWh/año · suma de {exp.actuaciones.length} actuación{exp.actuaciones.length === 1 ? '' : 'es'}</Text>
+            <Text style={{ color: '#CFE2F7' }}>
+              {formatoNumero(r.aeTotal)} kWh/año · suma de {exp.actuaciones.length} actuación{exp.actuaciones.length === 1 ? '' : 'es'}
+            </Text>
           </View>
           <Insignia texto={etiquetaEstado(exp.estado)} tono={tonoEstado(exp.estado)} />
         </View>
@@ -53,9 +62,48 @@ export default function DetalleExpediente() {
         </View>
       </Tarjeta>
 
+      <Tarjeta>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: color.texto, marginBottom: 8 }}>Indicadores económicos</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 18 }}>
+          <DatoEco titulo="Energía ahorrada" valor={`${formatoNumero(r.aeTotal)} kWh/año`} sub={`${formatoNumero(r.energiaMWhAnio, 3)} MWh/año`} />
+          <DatoEco
+            titulo="Impacto intermediario / instalador"
+            valor={r.impactoEconomicoIntermediarioEur === null ? '—' : `${formatoNumero(r.impactoEconomicoIntermediarioEur)} €`}
+            sub={
+              exp.valorEconomicoEurPorMWhAnio !== undefined && exp.feeIntermediarioPct !== undefined
+                ? `${formatoNumero(exp.valorEconomicoEurPorMWhAnio, 0)} €/MWh·año × fee ${formatoNumero(exp.feeIntermediarioPct, 0)} %`
+                : 'Falta valor económico o fee'
+            }
+            destacado
+          />
+        </View>
+        {r.valorBrutoPropietarioEur !== null ? (
+          <Text style={{ color: color.textoSuave, fontSize: 12.5, marginTop: 10 }}>
+            Valor bruto al propietario del CAE: {formatoNumero(r.valorBrutoPropietarioEur)} €
+          </Text>
+        ) : null}
+      </Tarjeta>
+
       <ListaAvisos avisos={r.avisos} />
 
       <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+        {siguiente && accion ? (
+          <Boton
+            titulo={accion}
+            icono="arrow-forward"
+            onPress={async () => {
+              if (
+                await confirmar({
+                  titulo: accion,
+                  mensaje: `El expediente pasará a “${etiquetaEstado(siguiente)}”.`,
+                  textoConfirmar: accion,
+                })
+              ) {
+                actualizarExpediente(exp.id, { ...borrador, estado: siguiente });
+              }
+            }}
+          />
+        ) : null}
         <Boton titulo="Editar expediente" variante="secundario" icono="create-outline" onPress={() => router.push(`/expediente/${exp.id}/editar`)} />
         <Boton
           titulo="Duplicar"
@@ -86,12 +134,42 @@ export default function DetalleExpediente() {
         />
       </View>
 
-      <Seccion titulo="Sujeto obligado / delegado">
-        <Fila etiqueta="Tipo" valor={s.tipo === 'delegado' ? 'Sujeto delegado' : 'Sujeto obligado'} />
+      <Seccion titulo="Comprador del CAE">
+        <Fila etiqueta="Tipo" valor={etiquetaTipoSujeto(s.tipo)} />
         <Fila etiqueta="Razón social" valor={s.razonSocial || '—'} />
         <Fila etiqueta="NIF/CIF" valor={s.nifNie || '—'} />
         <Fila etiqueta="Contacto" valor={[s.telefono, s.email].filter(Boolean).join(' · ') || '—'} />
         <Fila etiqueta="Representante" valor={[s.representante.nombre, s.representante.nifNie].filter(Boolean).join(' · ') || '—'} />
+      </Seccion>
+
+      <Seccion titulo="Instalador / montador / partner (gestión CAE)">
+        <Fila etiqueta="Rol" valor={etiquetaRolGestor(g.rol)} />
+        <Fila etiqueta="Razón social" valor={g.razonSocial || '—'} />
+        <Fila etiqueta="NIF/CIF" valor={g.nifNie || '—'} />
+        <Fila etiqueta="Contacto" valor={[g.telefono, g.email].filter(Boolean).join(' · ') || '—'} />
+      </Seccion>
+
+      <Seccion titulo="Cliente / propietario del ahorro (actuaciones)" ayuda="Nombre al que irá asociado el CAE en cada actuación.">
+        {propietarios.length === 0 ? (
+          <Text style={{ color: color.textoSuave }}>Aún no hay actuaciones con propietario.</Text>
+        ) : (
+          propietarios.map((p) => <Fila key={p} etiqueta="Propietario / cliente" valor={p} />)
+        )}
+        {exp.actuaciones.map((a) => (
+          <Fila
+            key={a.id}
+            etiqueta={a.etiqueta || 'Actuación'}
+            valor={[a.propietarioAhorro || a.cliente.nombre || '—', a.cliente.nifNie].filter(Boolean).join(' · ')}
+          />
+        ))}
+      </Seccion>
+
+      <Seccion titulo="Parámetros económicos">
+        <Fila
+          etiqueta="Valor económico del CAE"
+          valor={exp.valorEconomicoEurPorMWhAnio === undefined ? '—' : `${formatoNumero(exp.valorEconomicoEurPorMWhAnio)} €/MWh·año`}
+        />
+        <Fila etiqueta="Fee intermediario / instalador" valor={exp.feeIntermediarioPct === undefined ? '—' : `${formatoNumero(exp.feeIntermediarioPct)} %`} />
         {exp.notas ? <Fila etiqueta="Notas" valor={exp.notas} /> : null}
       </Seccion>
 
@@ -120,6 +198,9 @@ export default function DetalleExpediente() {
                         {[a.direccion, a.codigoPostal, a.municipio].filter(Boolean).join(', ') || 'Sin dirección'}
                       </Text>
                       {a.referenciaCatastral ? <Text style={{ color: color.textoSuave, fontSize: 12 }}>Ref. catastral {a.referenciaCatastral}</Text> : null}
+                      <Text style={{ color: color.textoSuave, fontSize: 12 }}>
+                        Propietario CAE: {a.propietarioAhorro || a.cliente.nombre || '—'}
+                      </Text>
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
                         <Insignia texto={etiquetaEstadoObra(a.estadoObra)} tono={tonoEstadoObra(a.estadoObra)} />
                         {a.zonaInvierno && a.zonaVerano ? <Insignia texto={`Zona ${a.zonaInvierno}${a.zonaVerano}`} tono="neutro" /> : null}
@@ -133,7 +214,14 @@ export default function DetalleExpediente() {
                       peligro
                       etiqueta={`Eliminar ${a.etiqueta}`}
                       onPress={async () => {
-                        if (await confirmar({ titulo: 'Eliminar actuación', mensaje: `¿Eliminar “${a.etiqueta}” y sus ${a.ventanas.length} ventanas?`, textoConfirmar: 'Eliminar', peligro: true }))
+                        if (
+                          await confirmar({
+                            titulo: 'Eliminar actuación',
+                            mensaje: `¿Eliminar “${a.etiqueta}” y sus ${a.ventanas.length} ventanas?`,
+                            textoConfirmar: 'Eliminar',
+                            peligro: true,
+                          })
+                        )
                           eliminarActuacion(exp.id, a.id);
                       }}
                     />
@@ -160,6 +248,16 @@ function Resumen({ titulo, valor }: { titulo: string; valor: string }) {
     <View>
       <Text style={{ color: '#CFE2F7', fontSize: 11.5, textTransform: 'uppercase' }}>{titulo}</Text>
       <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{valor}</Text>
+    </View>
+  );
+}
+
+function DatoEco({ titulo, valor, sub, destacado }: { titulo: string; valor: string; sub?: string; destacado?: boolean }) {
+  return (
+    <View style={{ minWidth: 160, flex: 1 }}>
+      <Text style={{ fontSize: 11.5, color: color.textoSuave, textTransform: 'uppercase' }}>{titulo}</Text>
+      <Text style={{ fontSize: destacado ? 22 : 18, fontWeight: '800', color: destacado ? color.primario : color.texto }}>{valor}</Text>
+      {sub ? <Text style={{ color: color.textoSuave, fontSize: 12 }}>{sub}</Text> : null}
     </View>
   );
 }

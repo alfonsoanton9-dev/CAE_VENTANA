@@ -1,13 +1,20 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import type { ExpedienteBorrador } from '@/domain/tipos';
-import { Boton, CampoTexto, Pantalla, Selector, Seccion } from './componentes';
-import { ESTADOS_EXPEDIENTE } from './estado';
+import { Boton, CampoNumero, CampoTexto, Insignia, Pantalla, Selector, Seccion } from './componentes';
+import { etiquetaEstado, tonoEstado } from './estado';
 import { color } from './tema';
 
 const TIPOS_SUJETO = [
   { valor: 'obligado' as const, etiqueta: 'Sujeto obligado' },
   { valor: 'delegado' as const, etiqueta: 'Sujeto delegado' },
+  { valor: 'intermediario' as const, etiqueta: 'Intermediario' },
+];
+
+const ROLES_GESTOR = [
+  { valor: 'instalador' as const, etiqueta: 'Instalador' },
+  { valor: 'montador' as const, etiqueta: 'Montador' },
+  { valor: 'partner' as const, etiqueta: 'Partner' },
 ];
 
 export function FormularioExpediente({
@@ -40,7 +47,7 @@ export function FormularioExpediente({
         </>
       }
     >
-      <Seccion titulo="Identificación del expediente" ayuda="El expediente agrupa una o varias actuaciones y es la unidad que se lleva a verificación.">
+      <Seccion titulo="Identificación del expediente" ayuda="El estado es un indicador de flujo: no se cambia aquí. Avanza desde la ficha del expediente.">
         <CampoTexto
           etiqueta="Referencia / nº de expediente"
           valor={d.referencia}
@@ -49,16 +56,16 @@ export function FormularioExpediente({
           requerido
         />
         {intentado && falta ? <Text style={{ color: color.error, fontSize: 12.5 }}>La referencia del expediente es obligatoria.</Text> : null}
-        <Selector
-          etiqueta="Estado del expediente"
-          opciones={ESTADOS_EXPEDIENTE}
-          valor={d.estado}
-          onChange={(v) => v && setD((x) => ({ ...x, estado: v }))}
-          ayuda="Borrador → en elaboración → verificado."
-        />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text style={{ color: color.textoSuave, fontSize: 13.5 }}>Estado actual</Text>
+          <Insignia texto={etiquetaEstado(d.estado)} tono={tonoEstado(d.estado)} />
+        </View>
       </Seccion>
 
-      <Seccion titulo="Sujeto obligado / delegado" ayuda="Contrato a nivel de expediente. Habrá un sujeto por expediente.">
+      <Seccion
+        titulo="Comprador del CAE (SO / SD / intermediario)"
+        ayuda="Sujeto obligado, delegado o intermediario que compra el CAE de este expediente."
+      >
         <Selector
           etiqueta="Tipo"
           opciones={TIPOS_SUJETO}
@@ -111,6 +118,63 @@ export function FormularioExpediente({
             mayusculas
           />
         </Fila2>
+      </Seccion>
+
+      <Seccion
+        titulo="Instalador / montador / partner"
+        ayuda="Quien gestiona la documentación del CAE (instalador, montador o partner)."
+      >
+        <Selector
+          etiqueta="Rol"
+          opciones={ROLES_GESTOR}
+          valor={d.gestor.rol}
+          onChange={(v) => v && setD((x) => ({ ...x, gestor: { ...x.gestor, rol: v } }))}
+        />
+        <CampoTexto
+          etiqueta="Razón social"
+          valor={d.gestor.razonSocial}
+          onChange={(v) => setD((x) => ({ ...x, gestor: { ...x.gestor, razonSocial: v } }))}
+        />
+        <Fila2>
+          <CampoTexto
+            etiqueta="NIF/CIF"
+            valor={d.gestor.nifNie}
+            onChange={(v) => setD((x) => ({ ...x, gestor: { ...x.gestor, nifNie: v.toUpperCase() } }))}
+            mayusculas
+          />
+          <CampoTexto
+            etiqueta="Teléfono"
+            valor={d.gestor.telefono}
+            onChange={(v) => setD((x) => ({ ...x, gestor: { ...x.gestor, telefono: v } }))}
+            teclado="phone-pad"
+          />
+        </Fila2>
+        <CampoTexto
+          etiqueta="Correo electrónico"
+          valor={d.gestor.email}
+          onChange={(v) => setD((x) => ({ ...x, gestor: { ...x.gestor, email: v } }))}
+          teclado="email-address"
+        />
+      </Seccion>
+
+      <Seccion
+        titulo="Valor económico del CAE"
+        ayuda="Precio €/MWh·año pagado al propietario del ahorro, y fee (%) del intermediario/instalador. El impacto = (AE kWh/1000) × precio × fee/100."
+      >
+        <CampoNumero
+          etiqueta="Valor económico del CAE"
+          unidad="€/MWh·año"
+          valor={d.valorEconomicoEurPorMWhAnio}
+          onChange={(v) => setD((x) => ({ ...x, valorEconomicoEurPorMWhAnio: v }))}
+          ayuda="Precio que se paga al propietario del CAE por MWh de ahorro anual."
+        />
+        <CampoNumero
+          etiqueta="Fee intermediario / instalador"
+          unidad="%"
+          valor={d.feeIntermediarioPct}
+          onChange={(v) => setD((x) => ({ ...x, feeIntermediarioPct: v }))}
+          ayuda="Porcentaje sobre el valor bruto del CAE destinado al intermediario o instalador."
+        />
       </Seccion>
 
       <Seccion titulo="Notas del expediente">

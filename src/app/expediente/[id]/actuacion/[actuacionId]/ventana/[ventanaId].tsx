@@ -5,7 +5,8 @@ import { desglosarVentana, esMarcoMetalico } from '@/domain/calculo';
 import { ventanaVacia } from '@/domain/fabrica';
 import { MATERIALES_MARCO, ORIENTACIONES, TIPOS_HUECO, type ClasePermeabilidad, type Ventana } from '@/domain/tipos';
 import { useAlmacen } from '@/store/almacen';
-import { Boton, CampoNumero, CampoTexto, Cargando, Interruptor, ListaAvisos, Pantalla, Selector, Seccion, Tarjeta, Vacio } from '@/ui/componentes';
+import { Boton, CampoNumero, CampoTexto, Cargando, Fila, Interruptor, ListaAvisos, Pantalla, Selector, Seccion, Tarjeta, Vacio } from '@/ui/componentes';
+import { CampoFoto } from '@/ui/DocumentosActuacion';
 import { DesgloseLineaVentana } from '@/ui/Desglose';
 import { color } from '@/ui/tema';
 
@@ -82,6 +83,14 @@ function Editor({
       <Stack.Screen options={{ title: esNueva ? 'Nueva ventana' : v.etiqueta || 'Editar ventana' }} />
 
       <Seccion titulo="Identificación">
+        <Fila etiqueta="ID de ventana" valor={v.id} />
+        <CampoTexto
+          etiqueta="Código del instalador"
+          valor={v.codigoInstalador}
+          onChange={(x) => set('codigoInstalador', x)}
+          placeholder="Ej. INST-MAD-001"
+          ayuda="Código libre que rellenan los instaladores de ventanas (distinto del ID interno)."
+        />
         <View style={fila}>
           <CampoTexto etiqueta="Etiqueta" valor={v.etiqueta} onChange={(x) => set('etiqueta', x)} placeholder="Ej. V1 – Salón" />
           <CampoNumero etiqueta="Unidades iguales" valor={v.unidades} onChange={(x) => set('unidades', x ?? 1)} ayuda="Nº de huecos idénticos que se registran juntos." />
@@ -98,6 +107,13 @@ function Editor({
           onChange={(x) => set('orientacion', x)}
           permitirVacio
         />
+      </Seccion>
+
+      <Seccion titulo="Fotos antes / después" ayuda="Una foto del hueco antes de la sustitución y otra después.">
+        <View style={fila}>
+          <CampoFoto etiqueta="Foto antes" valor={v.fotoAntes} onChange={(a) => set('fotoAntes', a)} />
+          <CampoFoto etiqueta="Foto después" valor={v.fotoDespues} onChange={(a) => set('fotoDespues', a)} />
+        </View>
       </Seccion>
 
       <Seccion titulo="Hueco y situación anterior">

@@ -61,9 +61,9 @@ export interface Representante {
   nifNie: string;
 }
 
-/** Sujeto obligado o delegado del expediente (contrato a nivel expediente). */
+/** Sujeto obligado, delegado o intermediario comprador del CAE. */
 export interface SujetoObligado {
-  tipo: 'obligado' | 'delegado';
+  tipo: 'obligado' | 'delegado' | 'intermediario';
   razonSocial: string;
   nifNie: string;
   domicilio: string;
@@ -71,6 +71,15 @@ export interface SujetoObligado {
   telefono: string;
   /** Representante legal que firma la ficha. */
   representante: Representante;
+}
+
+/** Instalador, montador o partner que gestiona la documentación del CAE. */
+export interface GestorCae {
+  rol: 'instalador' | 'montador' | 'partner';
+  razonSocial: string;
+  nifNie: string;
+  telefono: string;
+  email: string;
 }
 
 export const TIPOS_DOCUMENTO = [
@@ -128,14 +137,14 @@ export interface Adjunto {
 
 export type DocumentacionActuacion = Record<ClaveDocumento, Adjunto[]>;
 
-/** Estado administrativo del expediente (verificación CAE). */
-export type EstadoExpediente = 'borrador' | 'en-elaboracion' | 'verificado';
+/** Estado del expediente (indicador de flujo; no se edita a mano en el formulario). */
+export type EstadoExpediente = 'borrador' | 'en-verificacion' | 'verificado' | 'vendido-cobrado';
 
 /** Estado de la obra en una actuación concreta. */
 export type EstadoObra = 'en-elaboracion' | 'finalizada';
 
 /**
- * Expediente CAE: contenedor de actuaciones + sujeto obligado/delegado.
+ * Expediente CAE: contenedor de actuaciones + sujeto comprador + gestor.
  * El cálculo total es la suma de las actuaciones.
  */
 export interface Expediente {
@@ -143,7 +152,19 @@ export interface Expediente {
   /** Código o nombre interno / nº de referencia del expediente. */
   referencia: string;
   estado: EstadoExpediente;
+  /** SO / SD / intermediario que compra el CAE. */
   sujeto: SujetoObligado;
+  /** Instalador, montador o partner que gestiona la documentación del CAE. */
+  gestor: GestorCae;
+  /**
+   * Valor económico del CAE: precio que se paga al propietario del ahorro (€/MWh·año).
+   * Se usa para el indicador de impacto económico.
+   */
+  valorEconomicoEurPorMWhAnio?: number;
+  /**
+   * Fee del intermediario/instalador (%). Impacto = (AE_kWh/1000) × valor económico × (fee/100).
+   */
+  feeIntermediarioPct?: number;
   notas: string;
   actuaciones: Actuacion[];
   creadoEn: string;
@@ -194,6 +215,11 @@ export interface Actuacion {
 
 export interface Ventana {
   id: string;
+  /**
+   * Código libre del instalador de ventanas (referencia de obra / fabricación).
+   * Distinto del ID interno de la app.
+   */
+  codigoInstalador: string;
   /** Etiqueta identificativa (p. ej. "V1 – Salón"). */
   etiqueta: string;
   tipo: TipoHueco;
@@ -203,6 +229,10 @@ export interface Ventana {
   unidades: number;
   /** Superficie del hueco por unidad (m²). */
   superficieM2?: number;
+  /** Foto del hueco antes de la sustitución. */
+  fotoAntes?: Adjunto;
+  /** Foto del hueco después de la sustitución. */
+  fotoDespues?: Adjunto;
   anterior: {
     descripcion: string;
     /** Uhi (W/m²·K). */
