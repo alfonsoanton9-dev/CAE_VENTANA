@@ -10,16 +10,19 @@ import {
   nuevoExpediente,
 } from '@/domain/fabrica';
 import { normalizarParametros, parametrosPorDefecto, type Parametros } from '@/domain/parametros';
-import type { Actuacion, ActuacionBorrador, Expediente, ExpedienteBorrador, Ventana } from '@/domain/tipos';
+import type { Actuacion, ActuacionBorrador, Expediente, ExpedienteBorrador, UsuarioPerfil, Ventana } from '@/domain/tipos';
+import { normalizarPerfilUsuario, perfilUsuarioTutorial } from '@/domain/usuario';
 
 const CLAVE_EXPEDIENTES = 'cae-ventana:expedientes:v2';
 const CLAVE_EXPEDIENTES_LEGACY = 'cae-ventana:expedientes:v1';
 const CLAVE_AJUSTES = 'cae-ventana:ajustes:v1';
+const CLAVE_USUARIO = 'cae-ventana:usuario:v1';
 
 interface Almacen {
   cargado: boolean;
   expedientes: Expediente[];
   parametros: Parametros;
+  usuario: UsuarioPerfil;
   obtenerExpediente: (id: string) => Expediente | undefined;
   obtenerActuacion: (expedienteId: string, actuacionId: string) => Actuacion | undefined;
   crearExpediente: (borrador: ExpedienteBorrador) => Expediente;
@@ -35,6 +38,7 @@ interface Almacen {
   eliminarVentana: (expedienteId: string, actuacionId: string, ventanaId: string) => void;
   guardarParametros: (p: Parametros) => void;
   restaurarParametros: () => void;
+  guardarUsuario: (u: UsuarioPerfil) => void;
   restaurarTutorial: () => void;
 }
 
@@ -44,13 +48,18 @@ export function AlmacenProvider({ children }: { children: React.ReactNode }) {
   const [cargado, setCargado] = useState(false);
   const [expedientes, setExpedientes] = useState<Expediente[]>([]);
   const [parametros, setParametros] = useState<Parametros>(parametrosPorDefecto());
+  const [usuario, setUsuario] = useState<UsuarioPerfil>(perfilUsuarioTutorial());
   const expedientesRef = useRef<Expediente[]>([]);
 
   useEffect(() => {
     (async () => {
       try {
         await AsyncStorage.removeItem(CLAVE_EXPEDIENTES_LEGACY);
-        const [rawExp, rawAjustes] = await Promise.all([AsyncStorage.getItem(CLAVE_EXPEDIENTES), AsyncStorage.getItem(CLAVE_AJUSTES)]);
+        const [rawExp, rawAjustes, rawUsuario] = await Promise.all([
+          AsyncStorage.getItem(CLAVE_EXPEDIENTES),
+          AsyncStorage.getItem(CLAVE_AJUSTES),
+          AsyncStorage.getItem(CLAVE_USUARIO),
+        ]);
         if (rawExp === null) {
           const tutorial = crearExpedienteTutorial();
           expedientesRef.current = [tutorial];
@@ -65,11 +74,18 @@ export function AlmacenProvider({ children }: { children: React.ReactNode }) {
           }
         }
         if (rawAjustes) setParametros(normalizarParametros(JSON.parse(rawAjustes)));
+        if (rawUsuario === null) {
+          const tutorial = perfilUsuarioTutorial();
+          setUsuario(tutorial);
+          await AsyncStorage.setItem(CLAVE_USUARIO, JSON.stringify(tutorial));
+        } else {
+          setUsuario(normalizarPerfilUsuario(JSON.parse(rawUsuario)));
+        }
       } catch {
-        // Datos corruptos: se arranca con el tutorial.
         const tutorial = crearExpedienteTutorial();
         expedientesRef.current = [tutorial];
         setExpedientes([tutorial]);
+        setUsuario(perfilUsuarioTutorial());
       } finally {
         setCargado(true);
       }
@@ -106,6 +122,7 @@ export function AlmacenProvider({ children }: { children: React.ReactNode }) {
       cargado,
       expedientes,
       parametros,
+      usuario,
       obtenerExpediente: (id) => expedientes.find((e) => e.id === id),
       obtenerActuacion: (expedienteId, actuacionId) =>
         expedientes.find((e) => e.id === expedienteId)?.actuaciones.find((a) => a.id === actuacionId),
@@ -173,12 +190,17 @@ export function AlmacenProvider({ children }: { children: React.ReactNode }) {
         setParametros(p);
         AsyncStorage.removeItem(CLAVE_AJUSTES).catch(() => {});
       },
+      guardarUsuario: (u) => {
+        const siguiente = { ...u, actualizadoEn: new Date().toISOString() };
+        setUsuario(siguiente);
+        AsyncStorage.setItem(CLAVE_USUARIO, JSON.stringify(siguiente)).catch(() => {});
+      },
       restaurarTutorial: () => {
         const tutorial = crearExpedienteTutorial();
         escribirExpedientes([tutorial, ...expedientesRef.current.filter((e) => !e.referencia.startsWith('CAE-TUTORIAL'))]);
       },
     }),
-    [cargado, expedientes, parametros, escribirExpedientes, modificar, modificarActuacion],
+    [cargado, expedientes, parametros, usuario, escribirExpedientes, modificar, modificarActuacion],
   );
 
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;

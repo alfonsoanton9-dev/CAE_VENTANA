@@ -1,5 +1,14 @@
 import { obtenerG, type Parametros } from './parametros';
-import { MATERIALES_MARCO, type Actuacion, type Expediente, type Ventana } from './tipos';
+import { limitesCteTransmitancia } from './cteTransmitancia';
+import {
+  esIntermediarioInstalador,
+  MATERIALES_MARCO,
+  type Actuacion,
+  type EstadoExpediente,
+  type Expediente,
+  type RolUsuario,
+  type Ventana,
+} from './tipos';
 
 /**
  * Fórmula de la ficha RES070 (apartado 3):
@@ -66,12 +75,20 @@ export interface ResultadoExpediente {
   energiaMWhAnio: number;
   /**
    * Impacto económico del intermediario/instalador [€]:
-   * (AE_kWh/1000) × valorEconomicoEurPorMWhAnio × (feeIntermediarioPct/100).
-   * null si faltan parámetros.
+   * MWh/año × feeIntermediarioEurPorMWhAnio.
+   * null si falta el fee.
    */
   impactoEconomicoIntermediarioEur: number | null;
-  /** Valor bruto al propietario del CAE [€] = MWh × €/MWh (sin fee). */
+  /** Valor bruto de la venta del CAE [€] = MWh × €/MWh (sin fee). ROI del propietario inicial. */
   valorBrutoPropietarioEur: number | null;
+  /**
+   * Retorno económico del usuario según su rol:
+   * - propietario inicial → importe de venta (valor bruto)
+   * - intermediario/instalador → MWh × fee €/MWh·año
+   */
+  retornoEconomicoEur: number | null;
+  /** Modo de cálculo del retorno según el rol del usuario. */
+  modoRetorno: 'venta-propietario' | 'fee-intermediario';
   avisos: Aviso[];
   cumple: boolean;
 }
@@ -79,22 +96,19 @@ export interface ResultadoExpediente {
 export function impactoEconomicoExpediente(
   aeTotalKwhAnio: number,
   valorEconomicoEurPorMWhAnio: number | undefined,
-  feeIntermediarioPct: number | undefined,
+  feeIntermediarioEurPorMWhAnio: number | undefined,
 ): { energiaMWhAnio: number; valorBrutoPropietarioEur: number | null; impactoEconomicoIntermediarioEur: number | null } {
   const energiaMWhAnio = aeTotalKwhAnio / 1000;
   const precio = valorEconomicoEurPorMWhAnio;
-  const fee = feeIntermediarioPct;
-  if (precio === undefined || !Number.isFinite(precio) || precio < 0) {
-    return { energiaMWhAnio, valorBrutoPropietarioEur: null, impactoEconomicoIntermediarioEur: null };
-  }
-  const valorBruto = energiaMWhAnio * precio;
-  if (fee === undefined || !Number.isFinite(fee) || fee < 0) {
-    return { energiaMWhAnio, valorBrutoPropietarioEur: valorBruto, impactoEconomicoIntermediarioEur: null };
-  }
+  const fee = feeIntermediarioEurPorMWhAnio;
+  const valorBruto =
+    precio === undefined || !Number.isFinite(precio) || precio < 0 ? null : energiaMWhAnio * precio;
+  const impactoFee =
+    fee === undefined || !Number.isFinite(fee) || fee < 0 ? null : energiaMWhAnio * fee;
   return {
     energiaMWhAnio,
     valorBrutoPropietarioEur: valorBruto,
-    impactoEconomicoIntermediarioEur: valorBruto * (fee / 100),
+    impactoEconomicoIntermediarioEur: impactoFee,
   };
 }
 
@@ -131,6 +145,23 @@ export function comprobarVentana(v: Ventana, a: Actuacion, p: Parametros): Aviso
           ? 'La transmitancia nueva (Uhf) es mayor que la anterior (Uhi): el ahorro sería negativo y se computa como 0 kWh (Ajustes → ignorar ahorros negativos).'
           : 'La transmitancia nueva (Uhf) no es menor que la anterior (Uhi): el ahorro de esta ventana es nulo o negativo.',
     });
+  }
+
+  if (a.zonaInvierno && nueva.transmitancia !== undefined && nueva.transmitancia > 0) {
+    const cte = limitesCteTransmitancia(a.zonaInvierno);
+    if (cte) {
+      if (nueva.transmitancia > cte.uMaximo) {
+        avisos.push({
+          gravedad: 'error',
+          mensaje: `Uhf (${nueva.transmitancia} W/m²·K) supera el máximo CTE de ${cte.uMaximo} W/m²·K para la zona ${a.zonaInvierno} (${cte.ciudadesEjemplo}).`,
+        });
+      } else if (nueva.transmitancia >= cte.uRecomendado) {
+        avisos.push({
+          gravedad: 'aviso',
+          mensaje: `Uhf (${nueva.transmitancia} W/m²·K) cumple el máximo CTE (${cte.uMaximo}) en zona ${a.zonaInvierno}, pero está por encima del valor recomendado (< ${cte.uRecomendado} W/m²·K).`,
+        });
+      }
+    }
   }
 
   if (a.zonaInvierno) {
@@ -276,20 +307,47 @@ export function calcularActuacion(a: Actuacion, p: Parametros): ResultadoActuaci
   };
 }
 
-export function calcularExpediente(e: Expediente, p: Parametros): ResultadoExpediente {
+export function calcularExpediente(
+  e: Expediente,
+  p: Parametros,
+  rolUsuario: RolUsuario = 'intermediario-instalador',
+): ResultadoExpediente {
   const actuaciones = e.actuaciones.map((a) => calcularActuacion(a, p));
   const aeTotal = actuaciones.reduce((acc, r) => acc + r.aeTotal, 0);
   const cae = actuaciones.reduce((acc, r) => acc + r.cae, 0);
   const superficieHuecos = actuaciones.reduce((acc, r) => acc + r.superficieHuecos, 0);
   const ventanasCalculadas = actuaciones.reduce((acc, r) => acc + r.ventanasCalculadas, 0);
   const ventanasTotales = e.actuaciones.reduce((acc, a) => acc + a.ventanas.length, 0);
-  const eco = impactoEconomicoExpediente(aeTotal, e.valorEconomicoEurPorMWhAnio, e.feeIntermediarioPct);
+  const eco = impactoEconomicoExpediente(aeTotal, e.valorEconomicoEurPorMWhAnio, e.feeIntermediarioEurPorMWhAnio);
+  const intermediario = esIntermediarioInstalador(rolUsuario);
+  const modoRetorno = intermediario ? 'fee-intermediario' : 'venta-propietario';
+  const retornoEconomicoEur = intermediario ? eco.impactoEconomicoIntermediarioEur : eco.valorBrutoPropietarioEur;
   const avisos: Aviso[] = [];
   if (e.actuaciones.length === 0) avisos.push({ gravedad: 'aviso', mensaje: 'El expediente no tiene actuaciones todavía.' });
-  if (!e.sujeto.razonSocial.trim()) avisos.push({ gravedad: 'aviso', mensaje: 'Indica el sujeto obligado, delegado o intermediario del expediente.' });
-  if (!e.gestor?.razonSocial?.trim()) avisos.push({ gravedad: 'aviso', mensaje: 'Indica el instalador, montador o partner que gestiona el CAE.' });
-  if (e.valorEconomicoEurPorMWhAnio === undefined) avisos.push({ gravedad: 'aviso', mensaje: 'Indica el valor económico del CAE (€/MWh·año) para calcular el impacto económico.' });
-  if (e.feeIntermediarioPct === undefined) avisos.push({ gravedad: 'aviso', mensaje: 'Indica el fee del intermediario/instalador (%) para el impacto económico.' });
+  if (!e.sujeto.razonSocial.trim())
+    avisos.push({ gravedad: 'aviso', mensaje: 'Indica el sujeto obligado o delegado (comprador del CAE) de este expediente.' });
+  if (intermediario) {
+    if (!e.gestor?.razonSocial?.trim())
+      avisos.push({ gravedad: 'aviso', mensaje: 'Indica el instalador / intermediario que gestiona el CAE.' });
+    const faltaPropietario = e.actuaciones.some((a) => !a.propietarioAhorro.trim() && !a.cliente.nombre.trim());
+    if (e.actuaciones.length > 0 && faltaPropietario)
+      avisos.push({ gravedad: 'aviso', mensaje: 'Indica el propietario inicial del CAE en cada actuación.' });
+    if (e.feeIntermediarioEurPorMWhAnio === undefined)
+      avisos.push({ gravedad: 'aviso', mensaje: 'Indica el fee pactado (€/MWh·año) del contrato de colaboración.' });
+  }
+  if (e.valorEconomicoEurPorMWhAnio === undefined)
+    avisos.push({
+      gravedad: 'aviso',
+      mensaje: intermediario
+        ? 'Indica el precio €/MWh·año pactado con el sujeto obligado/delegado (importe de venta del CAE).'
+        : 'Indica el precio €/MWh·año de venta del CAE (tu ROI es el importe de venta).',
+    });
+  if (eco.energiaMWhAnio < p.minimoMwhVerificacion) {
+    avisos.push({
+      gravedad: 'aviso',
+      mensaje: `El ahorro (${eco.energiaMWhAnio.toFixed(3).replace('.', ',')} MWh/año) no alcanza el mínimo de ${p.minimoMwhVerificacion} MWh/año para verificación.`,
+    });
+  }
   const cumple = avisos.every((a) => a.gravedad !== 'error') && actuaciones.every((r) => r.cumple);
   return {
     actuaciones,
@@ -301,7 +359,71 @@ export function calcularExpediente(e: Expediente, p: Parametros): ResultadoExped
     energiaMWhAnio: eco.energiaMWhAnio,
     impactoEconomicoIntermediarioEur: eco.impactoEconomicoIntermediarioEur,
     valorBrutoPropietarioEur: eco.valorBrutoPropietarioEur,
+    retornoEconomicoEur,
+    modoRetorno,
     avisos,
     cumple,
   };
 }
+
+/** Desglose del ROI del usuario por estado de los expedientes en la plataforma. */
+export interface RoiUsuarioPorEstado {
+  borrador: number;
+  enVerificacion: number;
+  verificado: number;
+  tramitadoPagado: number;
+  total: number;
+  nExpedientes: Record<'borrador' | 'en-verificacion' | 'verificado' | 'vendido-cobrado' | 'total', number>;
+  energiaMWhAnio: Record<'borrador' | 'en-verificacion' | 'verificado' | 'vendido-cobrado' | 'total', number>;
+  modo: 'venta-propietario' | 'fee-intermediario';
+}
+
+function claveRoiEstado(estado: EstadoExpediente): keyof Pick<RoiUsuarioPorEstado, 'borrador' | 'enVerificacion' | 'verificado' | 'tramitadoPagado'> {
+  if (estado === 'en-verificacion') return 'enVerificacion';
+  if (estado === 'verificado') return 'verificado';
+  if (estado === 'vendido-cobrado') return 'tramitadoPagado';
+  return 'borrador';
+}
+
+/**
+ * ROI del usuario agregando todos los expedientes de la plataforma:
+ * - propietario inicial → Σ (MWh × €/MWh·año de venta) por estado
+ * - intermediario/instalador → Σ (MWh × fee €/MWh·año) por estado
+ * Si un expediente intermediario no tiene fee propio, se usa feePerfilEurPorMWhAnio.
+ */
+export function calcularRoiUsuario(
+  expedientes: Expediente[],
+  p: Parametros,
+  rol: RolUsuario,
+  feePerfilEurPorMWhAnio?: number,
+): RoiUsuarioPorEstado {
+  const intermediario = esIntermediarioInstalador(rol);
+  const vacio = { borrador: 0, 'en-verificacion': 0, verificado: 0, 'vendido-cobrado': 0, total: 0 };
+  const out: RoiUsuarioPorEstado = {
+    borrador: 0,
+    enVerificacion: 0,
+    verificado: 0,
+    tramitadoPagado: 0,
+    total: 0,
+    nExpedientes: { ...vacio },
+    energiaMWhAnio: { ...vacio },
+    modo: intermediario ? 'fee-intermediario' : 'venta-propietario',
+  };
+
+  for (const e of expedientes) {
+    const r = calcularExpediente(e, p, rol);
+    const fee = e.feeIntermediarioEurPorMWhAnio ?? feePerfilEurPorMWhAnio;
+    const eco = impactoEconomicoExpediente(r.aeTotal, e.valorEconomicoEurPorMWhAnio, fee);
+    const roi = intermediario ? eco.impactoEconomicoIntermediarioEur ?? 0 : eco.valorBrutoPropietarioEur ?? 0;
+    const k = claveRoiEstado(e.estado);
+    out[k] += roi;
+    out.total += roi;
+    out.nExpedientes[e.estado] += 1;
+    out.nExpedientes.total += 1;
+    out.energiaMWhAnio[e.estado] += r.energiaMWhAnio;
+    out.energiaMWhAnio.total += r.energiaMWhAnio;
+  }
+
+  return out;
+}
+

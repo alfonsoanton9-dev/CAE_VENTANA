@@ -19,8 +19,8 @@ export const FLUJO_ESTADO_EXPEDIENTE: ReadonlyArray<{
 }> = [
   { valor: 'borrador', etiqueta: 'Borrador', accionSiguiente: 'Enviar a verificación' },
   { valor: 'en-verificacion', etiqueta: 'En verificación', accionSiguiente: 'Marcar como verificado' },
-  { valor: 'verificado', etiqueta: 'Verificado', accionSiguiente: 'Marcar vendido y cobrado' },
-  { valor: 'vendido-cobrado', etiqueta: 'Vendido y cobrado' },
+  { valor: 'verificado', etiqueta: 'Verificado', accionSiguiente: 'Marcar como cerrado y cobrado' },
+  { valor: 'vendido-cobrado', etiqueta: 'Cerrado y cobrado' },
 ];
 
 export function siguienteEstadoExpediente(actual: EstadoExpediente): EstadoExpediente | undefined {
@@ -30,6 +30,16 @@ export function siguienteEstadoExpediente(actual: EstadoExpediente): EstadoExped
 
 export function accionAvanceEstado(actual: EstadoExpediente): string | undefined {
   return FLUJO_ESTADO_EXPEDIENTE.find((x) => x.valor === actual)?.accionSiguiente;
+}
+
+/** Texto de ayuda / confirmación al avanzar el estado del expediente. */
+export function mensajeAvanceEstado(actual: EstadoExpediente): string | undefined {
+  if (actual === 'borrador')
+    return 'Se consolidará la documentación necesaria y el expediente se enviará a verificación para la certificación del CAE.';
+  if (actual === 'en-verificacion')
+    return 'Para cerrar la verificación debes aportar el contrato definitivo y el informe técnico.';
+  if (actual === 'verificado') return 'El expediente se marcará como cerrado y cobrado con la información aportada.';
+  return undefined;
 }
 
 export async function elegirAdjunto(opciones?: { soloImagenes?: boolean }): Promise<Adjunto | { error: string } | undefined> {

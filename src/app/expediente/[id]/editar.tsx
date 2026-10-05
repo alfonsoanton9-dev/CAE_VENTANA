@@ -6,7 +6,7 @@ import { FormularioExpediente } from '@/ui/FormularioExpediente';
 export default function EditarExpediente() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { cargado, obtenerExpediente, actualizarExpediente } = useAlmacen();
+  const { cargado, obtenerExpediente, actualizarExpediente, usuario } = useAlmacen();
   const exp = obtenerExpediente(id);
   if (!cargado) return <Cargando />;
   if (!exp)
@@ -23,6 +23,7 @@ export default function EditarExpediente() {
       <Stack.Screen options={{ title: 'Editar expediente' }} />
       <FormularioExpediente
         inicial={borrador}
+        rolUsuario={usuario.rol}
         textoGuardar="Guardar cambios"
         onCancelar={() => router.back()}
         onGuardar={(b) => {

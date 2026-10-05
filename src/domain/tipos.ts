@@ -157,14 +157,30 @@ export interface Expediente {
   /** Instalador, montador o partner que gestiona la documentación del CAE. */
   gestor: GestorCae;
   /**
-   * Valor económico del CAE: precio que se paga al propietario del ahorro (€/MWh·año).
-   * Se usa para el indicador de impacto económico.
+   * Precio €/MWh·año conseguido con el sujeto obligado/delegado (importe de venta del CAE).
+   * ROI del propietario inicial = MWh × este precio.
    */
   valorEconomicoEurPorMWhAnio?: number;
   /**
-   * Fee del intermediario/instalador (%). Impacto = (AE_kWh/1000) × valor económico × (fee/100).
+   * Fee pactado del intermediario/instalador [€/MWh·año]:
+   * precio fijo por cada MWh/año aportado a la plataforma en expedientes de sus clientes.
+   * ROI intermediario = MWh × fee €/MWh·año.
    */
-  feeIntermediarioPct?: number;
+  feeIntermediarioEurPorMWhAnio?: number;
+  /** Validación interna del expediente (previa a enviar a verificación). */
+  validado: boolean;
+  /** Contrato definitivo aportado al marcar como verificado. */
+  contratoDefinitivo?: Adjunto;
+  /** Informe técnico aportado al marcar como verificado. */
+  informeTecnico?: Adjunto;
+  /** Contrato de compraventa del CAE (nivel expediente). */
+  contratoCompraventa?: Adjunto;
+  /** Nombre / razón social de la certificadora que verifica el CAE. */
+  certificadoraNombre: string;
+  /** Nº de referencia del expediente en la certificadora. */
+  certificadoraReferencia: string;
+  /** Datos adicionales de la certificadora (contacto, observaciones…). */
+  certificadoraInfo: string;
   notas: string;
   actuaciones: Actuacion[];
   creadoEn: string;
@@ -255,6 +271,68 @@ export interface Ventana {
 
 export type ExpedienteBorrador = Omit<Expediente, 'id' | 'creadoEn' | 'actualizadoEn' | 'actuaciones'>;
 export type ActuacionBorrador = Omit<Actuacion, 'id' | 'creadoEn' | 'actualizadoEn' | 'ventanas'>;
+
+/**
+ * Rol del usuario de la aplicación respecto al CAE.
+ * Intermediario e instalador son el mismo perfil de negocio (gestionan el CAE de un tercero).
+ */
+export type RolUsuario = 'propietario-inicial' | 'intermediario-instalador';
+
+export const ROLES_USUARIO = [
+  { valor: 'propietario-inicial' as const, etiqueta: 'Propietario inicial del ahorro' },
+  { valor: 'intermediario-instalador' as const, etiqueta: 'Intermediario / instalador' },
+];
+
+/** Intermediario e instalador comparten las mismas reglas de negocio. */
+export function esIntermediarioInstalador(rol: RolUsuario | string | undefined): boolean {
+  return rol === 'intermediario-instalador' || rol === 'intermediario' || rol === 'instalador';
+}
+
+export function normalizarRolUsuario(rol: unknown): RolUsuario {
+  if (rol === 'propietario-inicial') return 'propietario-inicial';
+  return 'intermediario-instalador';
+}
+
+export const CARGOS_FIRMA = [
+  { valor: 'representante-legal', etiqueta: 'Representante legal' },
+  { valor: 'apoderado', etiqueta: 'Apoderado' },
+  { valor: 'administrador', etiqueta: 'Administrador' },
+  { valor: 'director', etiqueta: 'Director / gerente' },
+  { valor: 'otro', etiqueta: 'Otro cargo con facultad de firma' },
+] as const;
+
+export type CargoFirma = (typeof CARGOS_FIRMA)[number]['valor'];
+
+/**
+ * Perfil del usuario de la app (espacio personal).
+ * El SO/SD (contraparte) va en cada expediente, no aquí.
+ * El fee pactado (solo intermediario/instalador) se usa en el contrato y se arrastra a expedientes.
+ */
+export interface UsuarioPerfil {
+  nombre: string;
+  nifNie: string;
+  telefono: string;
+  email: string;
+  direccion: string;
+  cargoFirma: CargoFirma;
+  cargoFirmaOtro: string;
+  sociedad: string;
+  nifSociedad: string;
+  domicilioSociedad: string;
+  rol: RolUsuario;
+  /**
+   * Fee pactado [€/MWh·año] del contrato de colaboración (solo intermediario/instalador).
+   * Precio por cada MWh/año que aportan a la plataforma como expedientes de sus clientes.
+   * Se autocompleta en el contrato y prellena expedientes.
+   * El propietario inicial no tiene fee: su ROI es el importe de venta del CAE.
+   */
+  feePactadoEurPorMWhAnio?: number;
+  /** Contrato firmado adjunto (PDF/imagen), típico si es intermediario/instalador. */
+  contratoColaboracion?: Adjunto;
+  /** Marca de que el contrato generado en app se considera aceptado/firmado. */
+  contratoGeneradoAceptado: boolean;
+  actualizadoEn: string;
+}
 
 /** Campos de clima / emplazamiento editables en SeccionClima. */
 export type CamposClima = Pick<

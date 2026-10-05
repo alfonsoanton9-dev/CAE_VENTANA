@@ -62,7 +62,14 @@ export function borradorExpedienteVacio(): ExpedienteBorrador {
     sujeto: sujetoVacio(),
     gestor: gestorVacio(),
     valorEconomicoEurPorMWhAnio: undefined,
-    feeIntermediarioPct: undefined,
+    feeIntermediarioEurPorMWhAnio: undefined,
+    validado: false,
+    contratoDefinitivo: undefined,
+    informeTecnico: undefined,
+    contratoCompraventa: undefined,
+    certificadoraNombre: '',
+    certificadoraReferencia: '',
+    certificadoraInfo: '',
     notas: '',
   };
 }
@@ -172,11 +179,22 @@ export function duplicarExpediente(e: Expediente): Expediente {
 
 /** Completa expedientes guardados con versiones anteriores de la app (v2+). */
 export function normalizarExpediente(e: Expediente): Expediente {
+  const raw = e as Expediente & { feeIntermediarioPct?: number };
+  const { feeIntermediarioPct: _feePct, ...resto } = raw;
   return {
-    ...e,
+    ...resto,
     estado: migrarEstado(e.estado),
     sujeto: e.sujeto ?? sujetoVacio(),
     gestor: e.gestor ?? gestorVacio(),
+    feeIntermediarioEurPorMWhAnio:
+      typeof e.feeIntermediarioEurPorMWhAnio === 'number' ? e.feeIntermediarioEurPorMWhAnio : undefined,
+    validado: typeof e.validado === 'boolean' ? e.validado : false,
+    contratoDefinitivo: e.contratoDefinitivo,
+    informeTecnico: e.informeTecnico,
+    contratoCompraventa: e.contratoCompraventa,
+    certificadoraNombre: e.certificadoraNombre ?? '',
+    certificadoraReferencia: e.certificadoraReferencia ?? '',
+    certificadoraInfo: e.certificadoraInfo ?? '',
     actuaciones: (e.actuaciones ?? []).map(normalizarActuacion),
   };
 }
@@ -418,25 +436,32 @@ export function crearExpedienteTutorial(): Expediente {
     referencia: 'CAE-TUTORIAL-2026-001',
     estado: 'en-verificacion',
     sujeto: {
-      tipo: 'intermediario',
-      razonSocial: 'Energía Eficiencia del Centro, S.L.',
-      nifNie: 'B12345678',
-      domicilio: 'Paseo de la Castellana 100, 28046 Madrid',
-      email: 'cae@eficiencia-ejemplo.es',
-      telefono: '910000111',
-      representante: { nombre: 'Carlos Ruiz Méndez', nifNie: '87654321X' },
+      tipo: 'delegado',
+      razonSocial: 'Comercializadora Ejemplo, S.A.',
+      nifNie: 'A11111111',
+      domicilio: 'Calle Energía 1, 28001 Madrid',
+      email: 'cae@comercializadora-ejemplo.es',
+      telefono: '910000333',
+      representante: { nombre: 'Ana Pérez Soto', nifNie: '12345678Z' },
     },
     gestor: {
       rol: 'instalador',
-      razonSocial: 'Ventanas del Centro, S.L.',
-      nifNie: 'B87654321',
-      telefono: '910000222',
-      email: 'obras@ventanas-ejemplo.es',
+      razonSocial: 'Energía Eficiencia del Centro, S.L.',
+      nifNie: 'B12345678',
+      telefono: '910000111',
+      email: 'cae@eficiencia-ejemplo.es',
     },
     valorEconomicoEurPorMWhAnio: 120,
-    feeIntermediarioPct: 15,
+    feeIntermediarioEurPorMWhAnio: 18,
+    validado: true,
+    contratoDefinitivo: undefined,
+    informeTecnico: undefined,
+    contratoCompraventa: undefined,
+    certificadoraNombre: '',
+    certificadoraReferencia: '',
+    certificadoraInfo: '',
     notas:
-      'Expediente de ejemplo para aprender la app. Contiene dos actuaciones: una finalizada con documentación y otra en elaboración. Puedes editarlo o eliminarlo.',
+      'Expediente de ejemplo para aprender la app. Contiene dos actuaciones: una finalizada con documentación y otra en elaboración. El SO/SD es la comercializadora; el gestor es el intermediario/instalador. Puedes editarlo o eliminarlo.',
     actuaciones: [actuacion1, actuacion2],
     creadoEn: ahora,
     actualizadoEn: ahora,

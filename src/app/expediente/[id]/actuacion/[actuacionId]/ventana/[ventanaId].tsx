@@ -2,10 +2,12 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { desglosarVentana, esMarcoMetalico } from '@/domain/calculo';
+import { textoAyudaCteUhf, limitesCteTransmitancia } from '@/domain/cteTransmitancia';
 import { ventanaVacia } from '@/domain/fabrica';
 import { MATERIALES_MARCO, ORIENTACIONES, TIPOS_HUECO, type ClasePermeabilidad, type Ventana } from '@/domain/tipos';
+import { formatoNumero } from '@/domain/formato';
 import { useAlmacen } from '@/store/almacen';
-import { Boton, CampoNumero, CampoTexto, Cargando, Fila, Interruptor, ListaAvisos, Pantalla, Selector, Seccion, Tarjeta, Vacio } from '@/ui/componentes';
+import { Boton, CampoNumero, CampoTexto, Cargando, Fila, Interruptor, ListaAvisos, Nota, Pantalla, Selector, Seccion, Tarjeta, Vacio } from '@/ui/componentes';
 import { CampoFoto } from '@/ui/DocumentosActuacion';
 import { DesgloseLineaVentana } from '@/ui/Desglose';
 import { color } from '@/ui/tema';
@@ -148,7 +150,22 @@ function Editor({
           onChange={(x) => setNueva('descripcion', x)}
           placeholder="Ej. PVC 5 cámaras, doble acristalamiento bajo emisivo"
         />
-        <CampoNumero etiqueta="Transmitancia nueva Uhf" unidad="W/m²·K" valor={v.nueva.transmitancia} onChange={(x) => setNueva('transmitancia', x)} requerido />
+        <CampoNumero
+          etiqueta="Transmitancia nueva Uhf"
+          unidad="W/m²·K"
+          valor={v.nueva.transmitancia}
+          onChange={(x) => setNueva('transmitancia', x)}
+          requerido
+          ayuda={textoAyudaCteUhf(act.zonaInvierno)}
+        />
+        {act.zonaInvierno ? (
+          <Nota
+            tono="ok"
+            texto={`CTE zona ${act.zonaInvierno}: U máx. ${formatoNumero(limitesCteTransmitancia(act.zonaInvierno)!.uMaximo, 1)} W/m²·K · recomendado < ${formatoNumero(limitesCteTransmitancia(act.zonaInvierno)!.uRecomendado, 1)} W/m²·K. Menor Uhf frente a Uhi = mayor ahorro certificable.`}
+          />
+        ) : (
+          <Nota tono="aviso" texto="Define la zona climática en la actuación para validar Uhf frente a los límites CTE." />
+        )}
         <Selector etiqueta="Material del marco" opciones={MATERIALES_MARCO} valor={v.nueva.materialMarco} onChange={(x) => x && setNueva('materialMarco', x)} />
         {metalico ? (
           <CampoNumero

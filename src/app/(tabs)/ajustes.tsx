@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { CTE_TRANSMITANCIA_VENTANAS } from '@/domain/cteTransmitancia';
 import { normalizarParametros, parametrosPorDefecto, type Parametros } from '@/domain/parametros';
 import { ZONAS_INVIERNO, ZONAS_VERANO } from '@/domain/tipos';
 import { useAlmacen } from '@/store/almacen';
 import { tablaZonasOficial } from '@/domain/zonasClimaticas';
-import { Boton, CampoNumero, CampoNumeroCompacto, Cargando, Interruptor, Pantalla, Seccion, useConfirmar } from '@/ui/componentes';
+import { Boton, CampoNumero, CampoNumeroCompacto, Cargando, Interruptor, Nota, Pantalla, Seccion, useConfirmar } from '@/ui/componentes';
 import { EditorZonasClimaticas, validarTablaZonas } from '@/ui/EditorZonasClimaticas';
 import { color } from '@/ui/tema';
+import { formatoNumero } from '@/domain/formato';
+import { Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
 
 export default function Ajustes() {
   const { cargado, parametros, guardarParametros, restaurarParametros } = useAlmacen();
@@ -34,7 +36,7 @@ export default function Ajustes() {
   const oficial = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
   const guardar = () => {
-    const ok = [d.fp, d.umbralEnvolventePct, d.roturaPuenteTermicoMinMm, d.claseMinCajonPersiana, d.transmitanciaMaxCajon, d.kwhPorCae, ...Object.values(d.permeabilidadMaxPorZona), ...Object.values(d.permeabilidadPorClase)].every(
+    const ok = [d.fp, d.umbralEnvolventePct, d.roturaPuenteTermicoMinMm, d.claseMinCajonPersiana, d.transmitanciaMaxCajon, d.kwhPorCae, d.minimoMwhVerificacion, ...Object.values(d.permeabilidadMaxPorZona), ...Object.values(d.permeabilidadPorClase)].every(
       (n) => typeof n === 'number' && Number.isFinite(n),
     );
     if (!ok || d.kwhPorCae <= 0) {
@@ -106,6 +108,24 @@ export default function Ajustes() {
       </Seccion>
 
       <Seccion
+        titulo="Transmitancia U de ventanas (CTE)"
+        ayuda="Valores máximos y recomendados de U (W/m²·K) según zona climática de invierno. Cuanto menor sea Uhf respecto a Uhi, mayor será el ahorro certificable."
+      >
+        <Nota tono="ok" texto="Referencia orientativa del CTE. La app valida Uhf de cada ventana nueva frente a estos límites según la zona de la actuación." />
+        {ZONAS_INVIERNO.map((z) => {
+          const lim = CTE_TRANSMITANCIA_VENTANAS[z];
+          return (
+            <View key={z} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: color.borde }}>
+              <Text style={{ width: 70, fontWeight: '800', color: color.primario }}>Zona {z}</Text>
+              <Text style={{ flex: 1, minWidth: 140, color: color.textoSuave, fontSize: 13 }}>{lim.ciudadesEjemplo}</Text>
+              <Text style={{ minWidth: 110, color: color.texto, fontSize: 13 }}>Máx. {formatoNumero(lim.uMaximo, 1)}</Text>
+              <Text style={{ minWidth: 120, color: color.texto, fontSize: 13 }}>Rec. &lt; {formatoNumero(lim.uRecomendado, 1)}</Text>
+            </View>
+          );
+        })}
+      </Seccion>
+
+      <Seccion
         titulo="Coeficiente G (Anexo II)"
         ayuda="Miles de horas·K/año según zona climática de invierno (columnas) y de verano (filas). Deja una celda vacía para indicar que la combinación no está definida."
       >
@@ -141,6 +161,7 @@ export default function Ajustes() {
       <Seccion titulo="Cálculo del ahorro">
         <CampoNumero etiqueta="Factor de ponderación Fp" valor={d.fp} onChange={(x) => editar((p) => (p.fp = x as number))} ayuda={`Oficial: ${oficiales.fp}. Ajusta la demanda estimada al consumo real de energía final.`} />
         <CampoNumero etiqueta="kWh de ahorro por cada CAE" unidad="kWh" valor={d.kwhPorCae} onChange={(x) => editar((p) => (p.kwhPorCae = x as number))} ayuda="La ficha expresa el ahorro en kWh/año. Se asume 1 CAE = 1 kWh de ahorro de energía final." />
+        <CampoNumero etiqueta="Mínimo para verificación" unidad="MWh/año" valor={d.minimoMwhVerificacion} onChange={(x) => editar((p) => (p.minimoMwhVerificacion = x as number))} ayuda="Cantidad mínima de ahorro anual del expediente para poder verificarlo. Por defecto 30 MWh/año." />
         <Interruptor
           etiqueta="Multiplicar el ahorro por la duración Di"
           ayuda="Desactivado por defecto: según la ficha, Di es un dato administrativo que no se usa en el cálculo."

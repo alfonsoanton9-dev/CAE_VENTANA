@@ -11,7 +11,7 @@ import { color } from '@/ui/tema';
 
 export default function Expedientes() {
   const router = useRouter();
-  const { cargado, expedientes, parametros, restaurarTutorial } = useAlmacen();
+  const { cargado, expedientes, parametros, restaurarTutorial, usuario } = useAlmacen();
   const [busqueda, setBusqueda] = useState('');
 
   const filas = useMemo(() => {
@@ -25,8 +25,8 @@ export default function Expedientes() {
         );
         return enExpediente || enActuaciones;
       })
-      .map((e) => ({ e, r: calcularExpediente(e, parametros) }));
-  }, [expedientes, parametros, busqueda]);
+      .map((e) => ({ e, r: calcularExpediente(e, parametros, usuario.rol) }));
+  }, [expedientes, parametros, busqueda, usuario.rol]);
 
   if (!cargado) return <Cargando />;
 

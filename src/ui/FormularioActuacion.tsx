@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { formatoNumero } from '@/domain/formato';
-import { UBICACIONES, type ActuacionBorrador } from '@/domain/tipos';
+import { UBICACIONES, esIntermediarioInstalador, type ActuacionBorrador } from '@/domain/tipos';
 import { useAlmacen } from '@/store/almacen';
 import { Boton, CampoFecha, CampoNumero, CampoTexto, Interruptor, Pantalla, Selector, Seccion } from './componentes';
 import { ESTADOS_OBRA } from './estado';
@@ -19,7 +19,7 @@ export function FormularioActuacion({
   onGuardar: (a: ActuacionBorrador) => void;
   onCancelar: () => void;
 }) {
-  const { parametros } = useAlmacen();
+  const { parametros, usuario } = useAlmacen();
   const [d, setD] = useState<ActuacionBorrador>(inicial);
   const [intentado, setIntentado] = useState(false);
   const set = <K extends keyof ActuacionBorrador>(k: K, v: ActuacionBorrador[K]) => setD((x) => ({ ...x, [k]: v }));
@@ -102,7 +102,14 @@ export function FormularioActuacion({
 
       <SeccionClima d={d} setD={setD} parametros={parametros} inicialTieneAltitud={inicial.altitudM !== undefined} />
 
-      <Seccion titulo="Cliente / propietario">
+      <Seccion
+        titulo={esIntermediarioInstalador(usuario.rol) ? 'Propietario inicial del CAE' : 'Cliente / propietario'}
+        ayuda={
+          esIntermediarioInstalador(usuario.rol)
+            ? 'Obligatorio cuando eres intermediario/instalador: datos del propietario inicial del ahorro de este inmueble.'
+            : 'Tú eres el propietario inicial; estos datos se usan en la documentación del CAE.'
+        }
+      >
         <CampoTexto etiqueta="Nombre o razón social" valor={d.cliente.nombre} onChange={(v) => set('cliente', { ...d.cliente, nombre: v })} />
         <Fila2>
           <CampoTexto etiqueta="NIF/NIE" valor={d.cliente.nifNie} onChange={(v) => set('cliente', { ...d.cliente, nifNie: v.toUpperCase() })} mayusculas />
@@ -115,6 +122,7 @@ export function FormularioActuacion({
           valor={d.propietarioAhorro}
           onChange={(v) => set('propietarioAhorro', v)}
           ayuda="Quien formaliza la declaración responsable (Anexo I de la ficha)."
+          requerido={esIntermediarioInstalador(usuario.rol)}
         />
       </Seccion>
 

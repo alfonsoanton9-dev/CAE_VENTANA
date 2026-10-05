@@ -1,20 +1,20 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import type { ExpedienteBorrador } from '@/domain/tipos';
-import { Boton, CampoNumero, CampoTexto, Insignia, Pantalla, Selector, Seccion } from './componentes';
+import { esIntermediarioInstalador, type ExpedienteBorrador, type RolUsuario } from '@/domain/tipos';
+import { Boton, CampoNumero, CampoTexto, Insignia, Nota, Pantalla, Selector, Seccion } from './componentes';
+import { CampoFoto } from './DocumentosActuacion';
 import { etiquetaEstado, tonoEstado } from './estado';
 import { color } from './tema';
 
 const TIPOS_SUJETO = [
   { valor: 'obligado' as const, etiqueta: 'Sujeto obligado' },
   { valor: 'delegado' as const, etiqueta: 'Sujeto delegado' },
-  { valor: 'intermediario' as const, etiqueta: 'Intermediario' },
 ];
 
 const ROLES_GESTOR = [
   { valor: 'instalador' as const, etiqueta: 'Instalador' },
   { valor: 'montador' as const, etiqueta: 'Montador' },
-  { valor: 'partner' as const, etiqueta: 'Partner' },
+  { valor: 'partner' as const, etiqueta: 'Partner / intermediario' },
 ];
 
 export function FormularioExpediente({
@@ -22,20 +22,29 @@ export function FormularioExpediente({
   textoGuardar,
   onGuardar,
   onCancelar,
+  rolUsuario = 'intermediario-instalador',
 }: {
   inicial: ExpedienteBorrador;
   textoGuardar: string;
   onGuardar: (e: ExpedienteBorrador) => void;
   onCancelar: () => void;
+  /** Rol del usuario de la app: define reglas de fee / ROI y campos visibles. */
+  rolUsuario?: RolUsuario;
 }) {
   const [d, setD] = useState<ExpedienteBorrador>(inicial);
   const [intentado, setIntentado] = useState(false);
   const falta = d.referencia.trim() === '';
+  const intermediario = esIntermediarioInstalador(rolUsuario);
 
   const guardar = () => {
     setIntentado(true);
     if (falta) return;
-    onGuardar({ ...d, referencia: d.referencia.trim() });
+    onGuardar({
+      ...d,
+      referencia: d.referencia.trim(),
+      // Propietario inicial: no aplica fee de intermediario
+      feeIntermediarioEurPorMWhAnio: intermediario ? d.feeIntermediarioEurPorMWhAnio : undefined,
+    });
   };
 
   return (
@@ -63,13 +72,13 @@ export function FormularioExpediente({
       </Seccion>
 
       <Seccion
-        titulo="Comprador del CAE (SO / SD / intermediario)"
-        ayuda="Sujeto obligado, delegado o intermediario que compra el CAE de este expediente."
+        titulo="Sujeto obligado / delegado (comprador del CAE)"
+        ayuda="Contraparte de este expediente: quien compra el CAE. No forma parte del perfil de usuario; se indica aquí en cada expediente."
       >
         <Selector
           etiqueta="Tipo"
           opciones={TIPOS_SUJETO}
-          valor={d.sujeto.tipo}
+          valor={d.sujeto.tipo === 'intermediario' ? 'delegado' : d.sujeto.tipo}
           onChange={(v) => v && setD((x) => ({ ...x, sujeto: { ...x.sujeto, tipo: v } }))}
         />
         <CampoTexto
@@ -120,60 +129,106 @@ export function FormularioExpediente({
         </Fila2>
       </Seccion>
 
-      <Seccion
-        titulo="Instalador / montador / partner"
-        ayuda="Quien gestiona la documentación del CAE (instalador, montador o partner)."
-      >
-        <Selector
-          etiqueta="Rol"
-          opciones={ROLES_GESTOR}
-          valor={d.gestor.rol}
-          onChange={(v) => v && setD((x) => ({ ...x, gestor: { ...x.gestor, rol: v } }))}
-        />
-        <CampoTexto
-          etiqueta="Razón social"
-          valor={d.gestor.razonSocial}
-          onChange={(v) => setD((x) => ({ ...x, gestor: { ...x.gestor, razonSocial: v } }))}
-        />
-        <Fila2>
-          <CampoTexto
-            etiqueta="NIF/CIF"
-            valor={d.gestor.nifNie}
-            onChange={(v) => setD((x) => ({ ...x, gestor: { ...x.gestor, nifNie: v.toUpperCase() } }))}
-            mayusculas
+      {intermediario ? (
+        <Seccion
+          titulo="Intermediario / instalador (gestión CAE)"
+          ayuda="Tú gestionas el expediente. El propietario inicial del CAE se indica en cada actuación."
+        >
+          <Selector
+            etiqueta="Rol"
+            opciones={ROLES_GESTOR}
+            valor={d.gestor.rol}
+            onChange={(v) => v && setD((x) => ({ ...x, gestor: { ...x.gestor, rol: v } }))}
           />
           <CampoTexto
-            etiqueta="Teléfono"
-            valor={d.gestor.telefono}
-            onChange={(v) => setD((x) => ({ ...x, gestor: { ...x.gestor, telefono: v } }))}
-            teclado="phone-pad"
+            etiqueta="Razón social"
+            valor={d.gestor.razonSocial}
+            onChange={(v) => setD((x) => ({ ...x, gestor: { ...x.gestor, razonSocial: v } }))}
           />
-        </Fila2>
-        <CampoTexto
-          etiqueta="Correo electrónico"
-          valor={d.gestor.email}
-          onChange={(v) => setD((x) => ({ ...x, gestor: { ...x.gestor, email: v } }))}
-          teclado="email-address"
+          <Fila2>
+            <CampoTexto
+              etiqueta="NIF/CIF"
+              valor={d.gestor.nifNie}
+              onChange={(v) => setD((x) => ({ ...x, gestor: { ...x.gestor, nifNie: v.toUpperCase() } }))}
+              mayusculas
+            />
+            <CampoTexto
+              etiqueta="Teléfono"
+              valor={d.gestor.telefono}
+              onChange={(v) => setD((x) => ({ ...x, gestor: { ...x.gestor, telefono: v } }))}
+              teclado="phone-pad"
+            />
+          </Fila2>
+          <CampoTexto
+            etiqueta="Correo electrónico"
+            valor={d.gestor.email}
+            onChange={(v) => setD((x) => ({ ...x, gestor: { ...x.gestor, email: v } }))}
+            teclado="email-address"
+          />
+          <Nota tono="aviso" texto="En cada actuación deberás indicar los datos del propietario inicial del CAE." />
+        </Seccion>
+      ) : (
+        <Nota
+          tono="ok"
+          texto="Como propietario inicial eres tú quien negocia la venta. El comprador (SO/SD) está arriba; tu ROI será el importe de venta del CAE."
         />
-      </Seccion>
+      )}
 
       <Seccion
-        titulo="Valor económico del CAE"
-        ayuda="Precio €/MWh·año pagado al propietario del ahorro, y fee (%) del intermediario/instalador. El impacto = (AE kWh/1000) × precio × fee/100."
+        titulo={intermediario ? 'Retorno económico (fee intermediario/instalador)' : 'Retorno económico (venta del CAE)'}
+        ayuda={
+          intermediario
+            ? 'ROI = MWh/año × fee (€/MWh·año). El fee es el precio pactado por cada MWh aportado a la plataforma.'
+            : 'ROI = importe de venta = ahorro (MWh/año) × precio (€/MWh·año). No hay fee de intermediario.'
+        }
       >
         <CampoNumero
-          etiqueta="Valor económico del CAE"
+          etiqueta={intermediario ? 'Precio €/MWh·año (SO/SD)' : 'Precio de venta €/MWh·año'}
           unidad="€/MWh·año"
           valor={d.valorEconomicoEurPorMWhAnio}
           onChange={(v) => setD((x) => ({ ...x, valorEconomicoEurPorMWhAnio: v }))}
-          ayuda="Precio que se paga al propietario del CAE por MWh de ahorro anual."
+          ayuda={intermediario ? 'Precio del MWh·año pactado con el comprador del CAE.' : 'Precio al que vendes el CAE. Tu ROI es este importe × MWh.'}
         />
-        <CampoNumero
-          etiqueta="Fee intermediario / instalador"
-          unidad="%"
-          valor={d.feeIntermediarioPct}
-          onChange={(v) => setD((x) => ({ ...x, feeIntermediarioPct: v }))}
-          ayuda="Porcentaje sobre el valor bruto del CAE destinado al intermediario o instalador."
+        {intermediario ? (
+          <CampoNumero
+            etiqueta="Fee pactado"
+            unidad="€ por MWh·año de los expedientes generados"
+            valor={d.feeIntermediarioEurPorMWhAnio}
+            onChange={(v) => setD((x) => ({ ...x, feeIntermediarioEurPorMWhAnio: v }))}
+            ayuda="Prellenado desde tu perfil si lo tienes guardado. ROI = MWh/año × fee."
+          />
+        ) : null}
+      </Seccion>
+
+      <Seccion titulo="Contrato de compraventa del CAE" ayuda="Adjunta el contrato de compraventa del CAE de este expediente.">
+        <CampoFoto
+          etiqueta="Contrato de compraventa"
+          ayuda="PDF o imagen del contrato firmado."
+          valor={d.contratoCompraventa}
+          onChange={(a) => setD((x) => ({ ...x, contratoCompraventa: a }))}
+          soloImagenes={false}
+        />
+      </Seccion>
+
+      <Seccion titulo="Certificadora del CAE" ayuda="Datos y nº de referencia de la certificadora que verifica el CAE.">
+        <CampoTexto
+          etiqueta="Certificadora"
+          valor={d.certificadoraNombre}
+          onChange={(v) => setD((x) => ({ ...x, certificadoraNombre: v }))}
+          placeholder="Nombre o razón social de la certificadora"
+        />
+        <CampoTexto
+          etiqueta="Nº de referencia"
+          valor={d.certificadoraReferencia}
+          onChange={(v) => setD((x) => ({ ...x, certificadoraReferencia: v }))}
+          placeholder="Referencia del expediente en la certificadora"
+        />
+        <CampoTexto
+          etiqueta="Información adicional"
+          valor={d.certificadoraInfo}
+          onChange={(v) => setD((x) => ({ ...x, certificadoraInfo: v }))}
+          placeholder="Contacto, observaciones, fechas…"
+          multilinea
         />
       </Seccion>
 

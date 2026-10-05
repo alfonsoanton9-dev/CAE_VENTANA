@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ahorroVentana, calcularActuacion, calcularExpediente, comprobarVentana, desglosarVentana } from '../src/domain/calculo';
+import { ahorroVentana, calcularActuacion, calcularExpediente, calcularRoiUsuario, comprobarVentana, desglosarVentana } from '../src/domain/calculo';
 import { borradorActuacionVacio, borradorExpedienteVacio, duplicarVentana, nuevaActuacion, nuevoExpediente, ventanaVacia } from '../src/domain/fabrica';
 import { fechaAIso, isoAFecha, parsearNumero } from '../src/domain/formato';
 import { normalizarParametros, obtenerG, parametrosPorDefecto } from '../src/domain/parametros';
@@ -155,16 +155,48 @@ describe('Fórmula AE = Fp · Σ (Uhi − Uhf) · S · G', () => {
     expect(r.ventanasTotales).toBe(2);
   });
 
-  it('impacto económico = MWh × €/MWh × fee%', () => {
+  it('impacto económico intermediario = MWh × fee €/MWh·año', () => {
     const e = expediente('C', 3, [ventana(4, 2, 1)]);
     e.valorEconomicoEurPorMWhAnio = 100;
-    e.feeIntermediarioPct = 10;
-    const r = calcularExpediente(e, parametrosPorDefecto());
-    // AE = 92 kWh/año = 0,092 MWh → bruto 9,2 € → fee 0,92 €
+    e.feeIntermediarioEurPorMWhAnio = 10;
+    const r = calcularExpediente(e, parametrosPorDefecto(), 'intermediario-instalador');
+    // AE = 92 kWh/año = 0,092 MWh → fee 0,92 € · bruto venta 9,2 €
     expect(r.aeTotal).toBeCloseTo(92, 9);
     expect(r.energiaMWhAnio).toBeCloseTo(0.092, 9);
     expect(r.valorBrutoPropietarioEur).toBeCloseTo(9.2, 6);
     expect(r.impactoEconomicoIntermediarioEur).toBeCloseTo(0.92, 6);
+    expect(r.retornoEconomicoEur).toBeCloseTo(0.92, 6);
+    expect(r.modoRetorno).toBe('fee-intermediario');
+  });
+
+  it('propietario inicial: ROI = importe de venta (sin fee)', () => {
+    const e = expediente('C', 3, [ventana(4, 2, 1)]);
+    e.valorEconomicoEurPorMWhAnio = 100;
+    e.feeIntermediarioEurPorMWhAnio = 10; // ignorado para el retorno del propietario
+    const r = calcularExpediente(e, parametrosPorDefecto(), 'propietario-inicial');
+    expect(r.valorBrutoPropietarioEur).toBeCloseTo(9.2, 6);
+    expect(r.retornoEconomicoEur).toBeCloseTo(9.2, 6);
+    expect(r.modoRetorno).toBe('venta-propietario');
+    expect(r.avisos.some((a) => a.mensaje.includes('fee'))).toBe(false);
+  });
+
+  it('ROI de usuario agregado por estado', () => {
+    const a = expediente('C', 3, [ventana(4, 2, 1)]);
+    a.estado = 'borrador';
+    a.valorEconomicoEurPorMWhAnio = 100;
+    a.feeIntermediarioEurPorMWhAnio = 10;
+    const b = expediente('C', 3, [ventana(4, 2, 1)]);
+    b.estado = 'vendido-cobrado';
+    b.valorEconomicoEurPorMWhAnio = 100;
+    b.feeIntermediarioEurPorMWhAnio = 10;
+    const inter = calcularRoiUsuario([a, b], parametrosPorDefecto(), 'intermediario-instalador');
+    expect(inter.borrador).toBeCloseTo(0.92, 6);
+    expect(inter.tramitadoPagado).toBeCloseTo(0.92, 6);
+    expect(inter.total).toBeCloseTo(1.84, 6);
+    const prop = calcularRoiUsuario([a, b], parametrosPorDefecto(), 'propietario-inicial');
+    expect(prop.borrador).toBeCloseTo(9.2, 6);
+    expect(prop.tramitadoPagado).toBeCloseTo(9.2, 6);
+    expect(prop.total).toBeCloseTo(18.4, 6);
   });
 });
 
@@ -186,6 +218,19 @@ describe('Requisitos de la ficha', () => {
     const enC = actuacion('C', 3, [v2]);
     expect(comprobarVentana(v2, enA, p).some((a) => a.mensaje.includes('Permeabilidad'))).toBe(false);
     expect(comprobarVentana(v2, enC, p).some((a) => a.mensaje.includes('Permeabilidad'))).toBe(true);
+  });
+
+  it('CTE: Uhf por encima del máximo de la zona es error', () => {
+    const v = ventana(5, 3.2, 1); // zona B máx 3,0
+    const avisos = comprobarVentana(v, actuacion('B', 3, [v]), p);
+    expect(avisos.some((a) => a.gravedad === 'error' && a.mensaje.includes('máximo CTE'))).toBe(true);
+  });
+
+  it('CTE: Uhf entre recomendado y máximo es aviso', () => {
+    const v = ventana(4, 2.0, 1); // zona C: máx 2,5 · recomendado < 1,6
+    const avisos = comprobarVentana(v, actuacion('C', 3, [v]), p);
+    expect(avisos.some((a) => a.gravedad === 'aviso' && a.mensaje.includes('recomendado'))).toBe(true);
+    expect(avisos.some((a) => a.gravedad === 'error' && a.mensaje.includes('máximo CTE'))).toBe(false);
   });
 
   it('marco metálico exige rotura de puente térmico ≥ 16 mm', () => {

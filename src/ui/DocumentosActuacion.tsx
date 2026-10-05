@@ -66,14 +66,17 @@ export function CampoFoto({
   ayuda,
   valor,
   onChange,
+  soloImagenes = true,
 }: {
   etiqueta: string;
   ayuda?: string;
   valor?: Adjunto;
   onChange: (a: Adjunto | undefined) => void;
+  /** Si es false, admite también PDF u otros documentos. */
+  soloImagenes?: boolean;
 }) {
   const subir = async () => {
-    const r = await elegirAdjunto({ soloImagenes: true });
+    const r = await elegirAdjunto({ soloImagenes });
     if (!r) return;
     if ('error' in r) {
       alert(r.error);
@@ -87,7 +90,7 @@ export function CampoFoto({
     <View style={{ gap: 8, flex: 1, minWidth: 160 }}>
       <Text style={{ fontWeight: '600', color: color.texto, fontSize: 14 }}>{etiqueta}</Text>
       {ayuda ? <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>{ayuda}</Text> : null}
-      {uri ? (
+      {uri && (valor?.mime.startsWith('image/') ?? false) ? (
         <Image source={{ uri }} style={{ width: '100%', height: 140, borderRadius: 10, backgroundColor: color.fondo }} resizeMode="cover" />
       ) : valor ? (
         <View style={{ padding: 12, borderRadius: 10, backgroundColor: color.fondo }}>
@@ -96,12 +99,12 @@ export function CampoFoto({
         </View>
       ) : (
         <View style={{ height: 100, borderRadius: 10, borderWidth: 1, borderColor: color.borde, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="image-outline" size={28} color={color.textoSuave} />
-          <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Sin foto</Text>
+          <Ionicons name={soloImagenes ? 'image-outline' : 'document-outline'} size={28} color={color.textoSuave} />
+          <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>{soloImagenes ? 'Sin foto' : 'Sin archivo'}</Text>
         </View>
       )}
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Boton titulo={valor ? 'Cambiar' : 'Subir foto'} variante="secundario" icono="camera-outline" onPress={() => void subir()} flex />
+        <Boton titulo={valor ? 'Cambiar' : soloImagenes ? 'Subir foto' : 'Subir archivo'} variante="secundario" icono={soloImagenes ? 'camera-outline' : 'cloud-upload-outline'} onPress={() => void subir()} flex />
         {valor ? <Boton titulo="Quitar" variante="peligro" onPress={() => onChange(undefined)} /> : null}
       </View>
     </View>

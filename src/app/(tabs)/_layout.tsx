@@ -1,6 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { Platform } from 'react-native';
 import { color } from '@/ui/tema';
+
+const esWeb = Platform.OS === 'web';
 
 export default function TabsLayout() {
   return (
@@ -10,7 +13,19 @@ export default function TabsLayout() {
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: '700' },
         tabBarActiveTintColor: color.primario,
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        tabBarInactiveTintColor: color.textoSuave,
+        tabBarLabelStyle: { fontSize: 13, fontWeight: '700' },
+        tabBarPosition: esWeb ? 'top' : 'bottom',
+        tabBarStyle: esWeb
+          ? {
+              backgroundColor: '#fff',
+              borderBottomWidth: 1,
+              borderTopWidth: 0,
+              borderBottomColor: color.borde,
+              height: 56,
+              paddingTop: 4,
+            }
+          : undefined,
         sceneStyle: { backgroundColor: color.fondo },
       }}
     >
@@ -20,6 +35,14 @@ export default function TabsLayout() {
           title: 'Expedientes',
           headerTitle: 'CAE Ventanas',
           tabBarIcon: ({ color: c, size }) => <Ionicons name="folder-open-outline" color={c} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="usuario"
+        options={{
+          title: 'Usuario',
+          headerTitle: 'Espacio de usuario',
+          tabBarIcon: ({ color: c, size }) => <Ionicons name="person-circle-outline" color={c} size={size} />,
         }}
       />
       <Tabs.Screen

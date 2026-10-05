@@ -32,6 +32,8 @@ export interface Parametros {
   transmitanciaMaxCajon: number;
   /** kWh de ahorro de energía final que equivalen a 1 CAE. */
   kwhPorCae: number;
+  /** Mínimo de ahorro anual (MWh/año) para poder verificar el expediente. */
+  minimoMwhVerificacion: number;
   /** Si se activa, CAE = ahorro anual × Di. Por defecto la ficha no usa Di en el cálculo. */
   multiplicarPorDuracion: boolean;
   /** Si se activa (por defecto), las ventanas con ahorro negativo cuentan como 0 kWh. */
@@ -79,6 +81,7 @@ export function parametrosPorDefecto(): Parametros {
     claseMinCajonPersiana: 4,
     transmitanciaMaxCajon: 1.5,
     kwhPorCae: 1,
+    minimoMwhVerificacion: 30,
     multiplicarPorDuracion: false,
     ignorarAhorrosNegativos: true,
   };
@@ -114,6 +117,7 @@ export function normalizarParametros(guardados: unknown): Parametros {
     claseMinCajonPersiana: num(s.claseMinCajonPersiana, base.claseMinCajonPersiana),
     transmitanciaMaxCajon: num(s.transmitanciaMaxCajon, base.transmitanciaMaxCajon),
     kwhPorCae: num(s.kwhPorCae, base.kwhPorCae) > 0 ? num(s.kwhPorCae, base.kwhPorCae) : base.kwhPorCae,
+    minimoMwhVerificacion: num(s.minimoMwhVerificacion, base.minimoMwhVerificacion) > 0 ? num(s.minimoMwhVerificacion, base.minimoMwhVerificacion) : base.minimoMwhVerificacion,
     multiplicarPorDuracion: typeof s.multiplicarPorDuracion === 'boolean' ? s.multiplicarPorDuracion : base.multiplicarPorDuracion,
     // v1 guardaba `false` como valor por defecto: se migra al nuevo por defecto (`true`).
     ignorarAhorrosNegativos:

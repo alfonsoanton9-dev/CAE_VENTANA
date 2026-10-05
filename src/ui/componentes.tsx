@@ -257,7 +257,7 @@ export function Selector<T extends string | number>({
   requerido,
   permitirVacio,
 }: {
-  etiqueta: string;
+  etiqueta?: string;
   opciones: ReadonlyArray<{ valor: T; etiqueta: string }>;
   valor: T | undefined;
   onChange: (v: T | undefined) => void;
@@ -267,7 +267,7 @@ export function Selector<T extends string | number>({
 }) {
   return (
     <View>
-      <Etiqueta texto={etiqueta} ayuda={ayuda} requerido={requerido} />
+      {etiqueta || ayuda || requerido ? <Etiqueta texto={etiqueta ?? ''} ayuda={ayuda} requerido={requerido} /> : null}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {opciones.map((o) => {
           const activo = o.valor === valor;
@@ -276,7 +276,7 @@ export function Selector<T extends string | number>({
               key={String(o.valor)}
               accessibilityRole="button"
               accessibilityState={{ selected: activo }}
-              accessibilityLabel={`${etiqueta}: ${o.etiqueta}`}
+              accessibilityLabel={`${etiqueta ? `${etiqueta}: ` : ''}${o.etiqueta}`}
               onPress={() => onChange(activo && permitirVacio ? undefined : o.valor)}
               style={[e.chip, activo && { backgroundColor: color.primario, borderColor: color.primario }]}
             >
