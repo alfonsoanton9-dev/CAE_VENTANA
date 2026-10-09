@@ -57,8 +57,6 @@ export default function DetalleExpediente() {
     parametros,
     actualizarExpediente,
     actualizarActuacion,
-    duplicarExpediente,
-    eliminarExpediente,
     duplicarActuacion,
     eliminarActuacion,
     usuario,
@@ -202,24 +200,6 @@ export default function DetalleExpediente() {
                   r={r}
                   rolUsuario={usuario.rol}
                   onActualizar={(patch) => actualizarExpediente(exp.id, { ...borrador, ...patch })}
-                  onEditar={() => router.push(`/expediente/${exp.id}/editar`)}
-                  onDuplicar={() => {
-                    const nuevo = duplicarExpediente(exp.id);
-                    if (nuevo) router.replace(`/expediente/${nuevo}`);
-                  }}
-                  onEliminar={async () => {
-                    if (
-                      await confirmar({
-                        titulo: 'Eliminar expediente',
-                        mensaje: `Se eliminará “${exp.referencia}” con sus ${exp.actuaciones.length} actuaciones. Esta acción no se puede deshacer.`,
-                        textoConfirmar: 'Eliminar',
-                        peligro: true,
-                      })
-                    ) {
-                      eliminarExpediente(exp.id);
-                      router.replace('/');
-                    }
-                  }}
                 />
               ) : null}
               {pestana === 'actuaciones' ? (
@@ -453,7 +433,7 @@ function BarraPestanas({
   lateral: boolean;
 }) {
   const items: Array<{ id: Pestana; titulo: string; icono: keyof typeof Ionicons.glyphMap; detalle: string }> = [
-    { id: 'expediente', titulo: 'Expediente', icono: 'document-text-outline', detalle: 'Datos, comprador y retorno' },
+    { id: 'expediente', titulo: 'Info expediente', icono: 'document-text-outline', detalle: 'Ahorro, ROI y partes' },
     { id: 'actuaciones', titulo: 'Actuaciones', icono: 'home-outline', detalle: `${nActuaciones} actuación${nActuaciones === 1 ? '' : 'es'}` },
     { id: 'contrato', titulo: 'Contrato', icono: 'create-outline', detalle: 'Compraventa CAE y firma' },
     { id: 'declaracion', titulo: 'Declaración', icono: 'shield-checkmark-outline', detalle: 'Anexo I por actuación' },
@@ -537,84 +517,66 @@ function PestanaExpediente({
   r,
   rolUsuario,
   onActualizar,
-  onEditar,
-  onDuplicar,
-  onEliminar,
 }: {
   exp: Expediente;
   r: ResultadoExpediente;
   rolUsuario: RolUsuario;
   onActualizar: (patch: Partial<Expediente>) => void;
-  onEditar: () => void;
-  onDuplicar: () => void;
-  onEliminar: () => void;
 }) {
   const s = exp.sujeto;
   const g = exp.gestor;
   const intermediario = esIntermediarioInstalador(rolUsuario);
   const precio = exp.valorEconomicoEurPorMWhAnio;
+  const fee = exp.feeIntermediarioEurPorMWhAnio;
+  const mwh = r.energiaMWhAnio;
+
+  const roiSub = intermediario
+    ? fee !== undefined
+      ? `${formatoNumero(mwh, 3)} MWh/año × ${formatoNumero(fee)} €/MWh·año (fee)`
+      : 'Falta fee pactado (€/MWh·año)'
+    : precio !== undefined
+      ? `${formatoNumero(mwh, 3)} MWh/año × ${formatoNumero(precio)} €/MWh·año (precio pactado)`
+      : 'Falta precio pactado (€/MWh·año)';
 
   return (
     <>
-      <View style={{ backgroundColor: color.primarioSuave, borderRadius: radio, padding: 12, borderWidth: 1, borderColor: '#B7D0EA' }}>
-        <Text style={{ color: color.primario, fontWeight: '700', fontSize: 13 }}>Pestaña Expediente CAE</Text>
-        <Text style={{ color: color.textoSuave, fontSize: 12.5, marginTop: 2 }}>
-          {intermediario
-            ? 'SO/SD, PRECIO AHORRO CAE, fee, gestor y propietario inicial (en actuaciones).'
-            : 'SO/SD, PRECIO AHORRO CAE (tu ROI = MWh × ese precio) y certificadora.'}
-        </Text>
-      </View>
-
-      <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
-        <Boton titulo="Editar expediente" variante="secundario" icono="create-outline" onPress={onEditar} />
-        <Boton titulo="Duplicar" variante="secundario" icono="copy-outline" onPress={onDuplicar} />
-        <Boton titulo="Eliminar" variante="peligro" icono="trash-outline" onPress={onEliminar} />
-      </View>
-
       <Tarjeta>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: color.texto, marginBottom: 4 }}>PRECIO AHORRO CAE y retorno</Text>
-        <Text style={{ color: color.textoSuave, fontSize: 12.5, marginBottom: 12 }}>
-          PRECIO AHORRO CAE = €/MWh·año que el SO/SD/intermediario paga al propietario inicial por el ahorro del expediente.
-          {intermediario
-            ? ' Tu ROI = MWh/año × fee (€/MWh·año).'
-            : ' Tu ROI = MWh/año × PRECIO AHORRO CAE.'}
-        </Text>
+        <Text style={{ fontSize: 16, fontWeight: '800', color: color.texto, marginBottom: 14 }}>Ahorro y retorno del expediente</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 18 }}>
           <DatoEco
-            titulo="PRECIO AHORRO CAE"
+            titulo="Ahorro energético"
+            valor={`${formatoNumero(mwh, 3)} MWh/año`}
+            sub={`${formatoNumero(r.aeTotal)} kWh/año · ${formatoNumero(r.cae)} CAE`}
+            destacado
+          />
+          <DatoEco
+            titulo="Precio pactado"
             valor={precio === undefined ? '—' : `${formatoNumero(precio)} €/MWh·año`}
-            sub="Pago al propietario inicial por MWh/año"
+            sub="€/MWh·año al propietario inicial"
           />
           {intermediario ? (
             <DatoEco
               titulo="Fee pactado"
-              valor={
-                exp.feeIntermediarioEurPorMWhAnio === undefined
-                  ? '—'
-                  : `${formatoNumero(exp.feeIntermediarioEurPorMWhAnio)} €/MWh·año`
-              }
-              sub="€ por MWh·año de los expedientes generados"
+              valor={fee === undefined ? '—' : `${formatoNumero(fee)} €/MWh·año`}
+              sub="Fee del contrato de colaboración"
             />
           ) : null}
           <DatoEco
-            titulo="ROI €"
+            titulo="ROI conseguido"
             valor={r.retornoEconomicoEur === null ? '—' : `${formatoNumero(r.retornoEconomicoEur)} €`}
-            sub={
-              intermediario
-                ? exp.feeIntermediarioEurPorMWhAnio !== undefined
-                  ? `${formatoNumero(r.energiaMWhAnio, 3)} MWh/año × ${formatoNumero(exp.feeIntermediarioEurPorMWhAnio)} €/MWh·año`
-                  : 'Falta fee pactado (€/MWh·año)'
-                : precio !== undefined
-                  ? `${formatoNumero(r.energiaMWhAnio, 3)} MWh/año × ${formatoNumero(precio)} €/MWh·año`
-                  : 'Falta PRECIO AHORRO CAE (€/MWh·año)'
-            }
+            sub={roiSub}
             destacado
           />
         </View>
-        {intermediario && precio !== undefined ? (
-          <Text style={{ color: color.textoSuave, fontSize: 12.5, marginTop: 10 }}>
-            Valor bruto al propietario (PRECIO AHORRO CAE × MWh):{' '}
-            {r.valorBrutoPropietarioEur === null ? '—' : `${formatoNumero(r.valorBrutoPropietarioEur)} €`}
+        <Text style={{ color: color.textoSuave, fontSize: 12.5, marginTop: 16, lineHeight: 18 }}>
+          Precio pactado = €/MWh·año que el SO/SD/intermediario paga al propietario inicial por el ahorro del expediente.
+          {intermediario
+            ? ' ROI del intermediario = ahorro del expediente (MWh/año) × fee pactado (€/MWh·año).'
+            : ' ROI del propietario inicial = ahorro del expediente (MWh/año) × precio pactado (€/MWh·año).'}
+        </Text>
+        {intermediario && r.valorBrutoPropietarioEur !== null ? (
+          <Text style={{ color: color.textoSuave, fontSize: 12.5, marginTop: 6 }}>
+            Valor bruto al propietario (ahorro × precio pactado): {formatoNumero(r.valorBrutoPropietarioEur)} €
           </Text>
         ) : null}
       </Tarjeta>
@@ -623,10 +585,10 @@ function PestanaExpediente({
 
       <Seccion
         titulo="Certificadora del CAE"
-        ayuda="Datos y nº de referencia de la certificadora que verifica el CAE."
+        ayuda="Razón social, nº de referencia y datos que pida la certificadora que verifica el CAE."
       >
         <CampoTexto
-          etiqueta="Certificadora"
+          etiqueta="Razón social / certificadora"
           valor={exp.certificadoraNombre}
           onChange={(v) => onActualizar({ certificadoraNombre: v })}
           placeholder="Nombre o razón social de la certificadora"
@@ -655,51 +617,41 @@ function PestanaExpediente({
         <Fila etiqueta="Representante" valor={[s.representante.nombre, s.representante.nifNie].filter(Boolean).join(' · ') || '—'} />
       </Seccion>
 
-      {intermediario ? (
-        <>
-          <Seccion titulo="Intermediario / instalador (gestión CAE)">
+      <Seccion titulo="Intermediario / instalador (gestión CAE)" ayuda="Datos del gestor del expediente cuando actúa un intermediario o instalador.">
+        {g.razonSocial || g.nifNie || intermediario ? (
+          <>
             <Fila etiqueta="Rol" valor={etiquetaRolGestor(g.rol)} />
             <Fila etiqueta="Razón social" valor={g.razonSocial || '—'} />
             <Fila etiqueta="NIF/CIF" valor={g.nifNie || '—'} />
             <Fila etiqueta="Contacto" valor={[g.telefono, g.email].filter(Boolean).join(' · ') || '—'} />
-          </Seccion>
-          <Seccion titulo="Propietario inicial del CAE (por actuación)" ayuda="Como intermediario/instalador debes indicar el propietario inicial en cada actuación.">
-            {exp.actuaciones.length === 0 ? (
-              <Text style={{ color: color.textoSuave }}>Aún no hay actuaciones. Añádelas en la pestaña Actuaciones.</Text>
-            ) : (
-              exp.actuaciones.map((a) => (
-                <Fila
-                  key={a.id}
-                  etiqueta={a.etiqueta || 'Actuación'}
-                  valor={[a.propietarioAhorro || a.cliente.nombre || '—', a.cliente.nifNie].filter(Boolean).join(' · ')}
-                />
-              ))
-            )}
-          </Seccion>
-        </>
-      ) : null}
-
-      <Seccion titulo="Parámetros económicos">
-        <Fila
-          etiqueta="PRECIO AHORRO CAE"
-          valor={precio === undefined ? '—' : `${formatoNumero(precio)} €/MWh·año`}
-        />
-        {intermediario ? (
-          <Fila
-            etiqueta="Fee pactado"
-            valor={
-              exp.feeIntermediarioEurPorMWhAnio === undefined
-                ? '—'
-                : `${formatoNumero(exp.feeIntermediarioEurPorMWhAnio)} €/MWh·año`
-            }
-          />
-        ) : null}
-        <Fila
-          etiqueta="ROI €"
-          valor={r.retornoEconomicoEur === null ? '—' : `${formatoNumero(r.retornoEconomicoEur)} €`}
-        />
-        {exp.notas ? <Fila etiqueta="Notas" valor={exp.notas} /> : null}
+          </>
+        ) : (
+          <Text style={{ color: color.textoSuave }}>Este expediente lo gestiona el propietario inicial (sin intermediario).</Text>
+        )}
       </Seccion>
+
+      <Seccion
+        titulo="Propietario inicial del CAE"
+        ayuda="Quien formaliza la declaración responsable y es titular del ahorro. Se indica por actuación."
+      >
+        {exp.actuaciones.length === 0 ? (
+          <Text style={{ color: color.textoSuave }}>Aún no hay actuaciones. Añádelas en la pestaña Actuaciones.</Text>
+        ) : (
+          exp.actuaciones.map((a) => (
+            <Fila
+              key={a.id}
+              etiqueta={a.etiqueta || 'Actuación'}
+              valor={[a.propietarioAhorro || a.cliente.nombre || '—', a.cliente.nifNie].filter(Boolean).join(' · ')}
+            />
+          ))
+        )}
+      </Seccion>
+
+      {exp.notas ? (
+        <Seccion titulo="Notas del expediente">
+          <Fila etiqueta="Observaciones" valor={exp.notas} />
+        </Seccion>
+      ) : null}
     </>
   );
 }

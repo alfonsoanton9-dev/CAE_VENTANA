@@ -5,13 +5,14 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { calcularExpediente } from '@/domain/calculo';
 import { formatoNumero } from '@/domain/formato';
 import { useAlmacen } from '@/store/almacen';
-import { Boton, Cargando, Insignia, Pantalla, Tarjeta, Vacio } from '@/ui/componentes';
+import { Boton, BotonIcono, Cargando, Insignia, Pantalla, Tarjeta, useConfirmar, Vacio } from '@/ui/componentes';
 import { etiquetaEstado, tonoEstado } from '@/ui/estado';
 import { color } from '@/ui/tema';
 
 export default function Expedientes() {
   const router = useRouter();
-  const { cargado, expedientes, parametros, restaurarTutorial, usuario } = useAlmacen();
+  const confirmar = useConfirmar();
+  const { cargado, expedientes, parametros, restaurarTutorial, usuario, eliminarExpediente } = useAlmacen();
   const [busqueda, setBusqueda] = useState('');
 
   const filas = useMemo(() => {
@@ -79,7 +80,32 @@ export default function Expedientes() {
                         {e.actuaciones.length} actuación{e.actuaciones.length === 1 ? '' : 'es'}
                       </Text>
                     </View>
-                    <Insignia texto={etiquetaEstado(e.estado)} tono={tonoEstado(e.estado)} />
+                    <View style={{ alignItems: 'flex-end', gap: 8 }}>
+                      <Insignia texto={etiquetaEstado(e.estado)} tono={tonoEstado(e.estado)} />
+                      <View style={{ flexDirection: 'row', gap: 4 }}>
+                        <BotonIcono
+                          icono="create-outline"
+                          etiqueta={`Editar ${e.referencia}`}
+                          onPress={() => router.push(`/expediente/${e.id}/editar`)}
+                        />
+                        <BotonIcono
+                          icono="trash-outline"
+                          peligro
+                          etiqueta={`Eliminar ${e.referencia}`}
+                          onPress={async () => {
+                            if (
+                              await confirmar({
+                                titulo: 'Eliminar expediente',
+                                mensaje: `Se eliminará “${e.referencia || 'sin referencia'}” con sus ${e.actuaciones.length} actuaciones. Esta acción no se puede deshacer.`,
+                                textoConfirmar: 'Eliminar',
+                                peligro: true,
+                              })
+                            )
+                              eliminarExpediente(e.id);
+                          }}
+                        />
+                      </View>
+                    </View>
                   </View>
                   <View style={{ flexDirection: 'row', gap: 20, marginTop: 14, flexWrap: 'wrap' }}>
                     <Dato titulo="Actuaciones" valor={String(e.actuaciones.length)} />
@@ -88,7 +114,7 @@ export default function Expedientes() {
                     <Dato
                       titulo="ROI propietario"
                       valor={r.valorBrutoPropietarioEur === null ? '—' : `${formatoNumero(r.valorBrutoPropietarioEur)} €`}
-                      sub="MWh × PRECIO AHORRO CAE"
+                      sub="MWh × precio pactado"
                     />
                     <Dato
                       titulo="ROI intermediario"
