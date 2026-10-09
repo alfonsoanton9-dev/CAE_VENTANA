@@ -85,7 +85,17 @@ export default function Expedientes() {
                     <Dato titulo="Actuaciones" valor={String(e.actuaciones.length)} />
                     <Dato titulo="Ventanas" valor={String(r.ventanasTotales)} />
                     <Dato titulo="Ahorro (kWh/año)" valor={formatoNumero(r.aeTotal)} />
-                    <Dato titulo="CAE" valor={formatoNumero(r.cae)} destacado />
+                    <Dato
+                      titulo="ROI propietario"
+                      valor={r.valorBrutoPropietarioEur === null ? '—' : `${formatoNumero(r.valorBrutoPropietarioEur)} €`}
+                      sub="MWh × PRECIO AHORRO CAE"
+                    />
+                    <Dato
+                      titulo="ROI intermediario"
+                      valor={r.impactoEconomicoIntermediarioEur === null ? '—' : `${formatoNumero(r.impactoEconomicoIntermediarioEur)} €`}
+                      sub="MWh × fee €/MWh·año"
+                      destacado
+                    />
                   </View>
                   {!r.cumple && r.ventanasTotales > 0 ? (
                     <View style={{ marginTop: 10 }}>
@@ -102,11 +112,12 @@ export default function Expedientes() {
   );
 }
 
-function Dato({ titulo, valor, destacado }: { titulo: string; valor: string; destacado?: boolean }) {
+function Dato({ titulo, valor, sub, destacado }: { titulo: string; valor: string; sub?: string; destacado?: boolean }) {
   return (
-    <View>
+    <View style={{ minWidth: 110 }}>
       <Text style={{ fontSize: 11.5, color: color.textoSuave, textTransform: 'uppercase', letterSpacing: 0.4 }}>{titulo}</Text>
-      <Text style={{ fontSize: destacado ? 20 : 16, fontWeight: '700', color: destacado ? color.primario : color.texto }}>{valor}</Text>
+      <Text style={{ fontSize: destacado ? 18 : 16, fontWeight: '700', color: destacado ? color.primario : color.texto }}>{valor}</Text>
+      {sub ? <Text style={{ fontSize: 11, color: color.textoSuave, marginTop: 1 }}>{sub}</Text> : null}
     </View>
   );
 }

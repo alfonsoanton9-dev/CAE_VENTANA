@@ -1,3 +1,7 @@
+import {
+  datosDeclaracionResponsableVacios,
+  normalizarDatosDeclaracionResponsable,
+} from './declaracionResponsable';
 import type {
   Actuacion,
   ActuacionBorrador,
@@ -67,6 +71,9 @@ export function borradorExpedienteVacio(): ExpedienteBorrador {
     contratoDefinitivo: undefined,
     informeTecnico: undefined,
     contratoCompraventa: undefined,
+    contratoCompraventaTexto: '',
+    firmaContratoCompraventa: undefined,
+    contratoCompraventaFirmado: false,
     certificadoraNombre: '',
     certificadoraReferencia: '',
     certificadoraInfo: '',
@@ -101,6 +108,10 @@ export function borradorActuacionVacio(): ActuacionBorrador {
     fechaInicio: '',
     fechaFin: '',
     documentacion: documentacionVacia(),
+    declaracionResponsableDatos: datosDeclaracionResponsableVacios(),
+    declaracionResponsableTexto: '',
+    firmaDeclaracionResponsable: undefined,
+    declaracionResponsableFirmada: false,
     notas: '',
   };
 }
@@ -134,6 +145,8 @@ export function ventanaVacia(numero = 1): Ventana {
     anterior: { descripcion: '', transmitancia: undefined },
     nueva: {
       descripcion: '',
+      modelo: '',
+      numeroSerie: '',
       transmitancia: undefined,
       materialMarco: 'pvc',
       roturaPuenteTermicoMm: undefined,
@@ -192,6 +205,9 @@ export function normalizarExpediente(e: Expediente): Expediente {
     contratoDefinitivo: e.contratoDefinitivo,
     informeTecnico: e.informeTecnico,
     contratoCompraventa: e.contratoCompraventa,
+    contratoCompraventaTexto: e.contratoCompraventaTexto ?? '',
+    firmaContratoCompraventa: e.firmaContratoCompraventa,
+    contratoCompraventaFirmado: typeof e.contratoCompraventaFirmado === 'boolean' ? e.contratoCompraventaFirmado : false,
     certificadoraNombre: e.certificadoraNombre ?? '',
     certificadoraReferencia: e.certificadoraReferencia ?? '',
     certificadoraInfo: e.certificadoraInfo ?? '',
@@ -220,6 +236,10 @@ export function normalizarActuacion(a: Actuacion): Actuacion {
       certificadoEficienciaEnergetica: docs.certificadoEficienciaEnergetica ?? [],
       declaracionPrestacionesCE: docs.declaracionPrestacionesCE ?? [],
     },
+    declaracionResponsableDatos: normalizarDatosDeclaracionResponsable(a.declaracionResponsableDatos),
+    declaracionResponsableTexto: a.declaracionResponsableTexto ?? '',
+    firmaDeclaracionResponsable: a.firmaDeclaracionResponsable,
+    declaracionResponsableFirmada: typeof a.declaracionResponsableFirmada === 'boolean' ? a.declaracionResponsableFirmada : false,
     ventanas: (a.ventanas ?? []).map(normalizarVentana),
   };
 }
@@ -228,6 +248,11 @@ export function normalizarVentana(v: Ventana): Ventana {
   return {
     ...v,
     codigoInstalador: v.codigoInstalador ?? '',
+    nueva: {
+      ...v.nueva,
+      modelo: v.nueva?.modelo ?? '',
+      numeroSerie: v.nueva?.numeroSerie ?? '',
+    },
   };
 }
 
@@ -258,6 +283,8 @@ export function crearExpedienteTutorial(): Expediente {
     anterior: { descripcion: 'Ventana simple cristal 4 mm, marco aluminio sin RPT', transmitancia: 5.7 },
     nueva: {
       descripcion: 'PVC 5 cámaras, doble acristalamiento 4/16/4 bajo emisivo',
+      modelo: 'ThermoStyle 70',
+      numeroSerie: 'TS70-2025-000184',
       transmitancia: 1.4,
       materialMarco: 'pvc',
       roturaPuenteTermicoMm: undefined,
@@ -282,6 +309,8 @@ export function crearExpedienteTutorial(): Expediente {
     anterior: { descripcion: 'Ventana corredera aluminio', transmitancia: 5.2 },
     nueva: {
       descripcion: 'PVC oscilobatiente 4/16/4',
+      modelo: 'ThermoStyle 70',
+      numeroSerie: 'TS70-2025-000185 / TS70-2025-000186',
       transmitancia: 1.5,
       materialMarco: 'pvc',
       roturaPuenteTermicoMm: undefined,
@@ -306,6 +335,8 @@ export function crearExpedienteTutorial(): Expediente {
     anterior: { descripcion: 'Puerta-ventana madera antigua', transmitancia: 4.0 },
     nueva: {
       descripcion: 'Aluminio con RPT 20 mm, vidrio 6/16/4',
+      modelo: 'AluTherm RPT-20',
+      numeroSerie: 'AT20-2025-004412',
       transmitancia: 1.8,
       materialMarco: 'aluminio',
       roturaPuenteTermicoMm: 20,
@@ -364,6 +395,16 @@ export function crearExpedienteTutorial(): Expediente {
       certificadoEficienciaEnergetica: [adjuntoMarcador('CEE_registro.pdf')],
       declaracionPrestacionesCE: [adjuntoMarcador('Declaracion_prestaciones_marcado_CE.pdf')],
     },
+    declaracionResponsableDatos: {
+      ...datosDeclaracionResponsableVacios(),
+      comunidadAutonoma: 'Comunidad de Madrid',
+      lugarFirma: 'Madrid',
+      bonoSocial: 'ninguno',
+      situacionAyuda: 'no-solicitado',
+    },
+    declaracionResponsableTexto: '',
+    firmaDeclaracionResponsable: undefined,
+    declaracionResponsableFirmada: false,
     notas: 'Actuación de ejemplo del tutorial: tres tipologías de hueco en la misma vivienda.',
     ventanas: [v1, v2, v3],
     creadoEn: ahora,
@@ -405,6 +446,10 @@ export function crearExpedienteTutorial(): Expediente {
     fechaInicio: '2025-10-01',
     fechaFin: '',
     documentacion: documentacionVacia(),
+    declaracionResponsableDatos: datosDeclaracionResponsableVacios(),
+    declaracionResponsableTexto: '',
+    firmaDeclaracionResponsable: undefined,
+    declaracionResponsableFirmada: false,
     notas: 'Segunda actuación del mismo expediente (otra referencia catastral). Aún en elaboración.',
     ventanas: [
       {
@@ -418,6 +463,8 @@ export function crearExpedienteTutorial(): Expediente {
         anterior: { descripcion: 'Ventana metal sin RPT', transmitancia: 5.8 },
         nueva: {
           descripcion: 'PVC 4/16/4',
+          modelo: 'EcoWin Basic',
+          numeroSerie: 'EW-2025-000091',
           transmitancia: 1.6,
           materialMarco: 'pvc',
           clasePermeabilidad: 3,
@@ -457,6 +504,9 @@ export function crearExpedienteTutorial(): Expediente {
     contratoDefinitivo: undefined,
     informeTecnico: undefined,
     contratoCompraventa: undefined,
+    contratoCompraventaTexto: '',
+    firmaContratoCompraventa: undefined,
+    contratoCompraventaFirmado: false,
     certificadoraNombre: '',
     certificadoraReferencia: '',
     certificadoraInfo: '',

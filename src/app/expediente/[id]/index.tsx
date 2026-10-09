@@ -2,18 +2,48 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
-import { mensajeAvanceEstado, accionAvanceEstado, siguienteEstadoExpediente } from '@/domain/adjuntos';
+import { mensajeAvanceEstado } from '@/domain/adjuntos';
 import { calcularExpediente, type ResultadoActuacion, type ResultadoExpediente } from '@/domain/calculo';
-import type { Actuacion, Adjunto, Expediente, RolUsuario } from '@/domain/tipos';
+import { descargarAdjunto, generarPdfContratoFirmado, generarPdfTextoFirmado, textoContratoCompraventa } from '@/domain/contratoCompraventa';
+import {
+  datosDeclaracionResponsableVacios,
+  textoDeclaracionResponsable,
+} from '@/domain/declaracionResponsable';
+import { agruparDocumentacion, inventariarDocumentacion } from '@/domain/documentacionExpediente';
+import type {
+  Actuacion,
+  ActuacionBorrador,
+  Adjunto,
+  DatosDeclaracionResponsable,
+  Expediente,
+  RolUsuario,
+  UsuarioPerfil,
+} from '@/domain/tipos';
 import { TIPOS_DOCUMENTO, esIntermediarioInstalador } from '@/domain/tipos';
 import { formatoNumero } from '@/domain/formato';
 import { useAlmacen } from '@/store/almacen';
-import { Boton, BotonIcono, CampoTexto, Cargando, Fila, Insignia, ListaAvisos, Seccion, Tarjeta, useConfirmar, Vacio } from '@/ui/componentes';
+import {
+  Boton,
+  BotonIcono,
+  CampoTexto,
+  Cargando,
+  Fila,
+  Insignia,
+  Interruptor,
+  ListaAvisos,
+  Nota,
+  Seccion,
+  Selector,
+  Tarjeta,
+  useConfirmar,
+  Vacio,
+} from '@/ui/componentes';
 import { CampoFoto } from '@/ui/DocumentosActuacion';
 import { etiquetaEstado, etiquetaEstadoObra, etiquetaRolGestor, etiquetaTipoSujeto, tonoEstado, tonoEstadoObra } from '@/ui/estado';
 import { color, radio } from '@/ui/tema';
+import { ZonaFirma } from '@/ui/ZonaFirma';
 
-type Pestana = 'expediente' | 'actuaciones';
+type Pestana = 'expediente' | 'actuaciones' | 'contrato' | 'declaracion' | 'documentacion';
 
 export default function DetalleExpediente() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,8 +51,18 @@ export default function DetalleExpediente() {
   const confirmar = useConfirmar();
   const { width } = useWindowDimensions();
   const lateral = width >= 780;
-  const { cargado, obtenerExpediente, parametros, actualizarExpediente, duplicarExpediente, eliminarExpediente, duplicarActuacion, eliminarActuacion, usuario } =
-    useAlmacen();
+  const {
+    cargado,
+    obtenerExpediente,
+    parametros,
+    actualizarExpediente,
+    actualizarActuacion,
+    duplicarExpediente,
+    eliminarExpediente,
+    duplicarActuacion,
+    eliminarActuacion,
+    usuario,
+  } = useAlmacen();
   const exp = obtenerExpediente(id);
   const r = useMemo(() => (exp ? calcularExpediente(exp, parametros, usuario.rol) : null), [exp, parametros, usuario.rol]);
   const [pestana, setPestana] = useState<Pestana>('expediente');
@@ -181,7 +221,8 @@ export default function DetalleExpediente() {
                     }
                   }}
                 />
-              ) : (
+              ) : null}
+              {pestana === 'actuaciones' ? (
                 <PestanaActuaciones
                   exp={exp}
                   r={r}
@@ -200,7 +241,25 @@ export default function DetalleExpediente() {
                       eliminarActuacion(exp.id, a.id);
                   }}
                 />
-              )}
+              ) : null}
+              {pestana === 'contrato' ? (
+                <PestanaContrato
+                  exp={exp}
+                  r={r}
+                  usuario={usuario}
+                  onActualizar={(patch) => actualizarExpediente(exp.id, { ...borrador, ...patch })}
+                />
+              ) : null}
+              {pestana === 'declaracion' ? (
+                <PestanaDeclaracion
+                  exp={exp}
+                  onActualizarActuacion={(a, patch) => {
+                    const { id: _i, ventanas: _v, creadoEn: _c, actualizadoEn: _u, ...base } = a;
+                    actualizarActuacion(exp.id, a.id, { ...base, ...patch });
+                  }}
+                />
+              ) : null}
+              {pestana === 'documentacion' ? <PestanaDocumentacion exp={exp} /> : null}
             </View>
           </View>
         </View>
@@ -393,9 +452,12 @@ function BarraPestanas({
   nActuaciones: number;
   lateral: boolean;
 }) {
-  const items: Array<{ id: Pestana; titulo: string; icono: 'document-text-outline' | 'home-outline'; detalle: string }> = [
+  const items: Array<{ id: Pestana; titulo: string; icono: keyof typeof Ionicons.glyphMap; detalle: string }> = [
     { id: 'expediente', titulo: 'Expediente', icono: 'document-text-outline', detalle: 'Datos, comprador y retorno' },
     { id: 'actuaciones', titulo: 'Actuaciones', icono: 'home-outline', detalle: `${nActuaciones} actuación${nActuaciones === 1 ? '' : 'es'}` },
+    { id: 'contrato', titulo: 'Contrato', icono: 'create-outline', detalle: 'Compraventa CAE y firma' },
+    { id: 'declaracion', titulo: 'Declaración', icono: 'shield-checkmark-outline', detalle: 'Anexo I por actuación' },
+    { id: 'documentacion', titulo: 'Documentación', icono: 'folder-open-outline', detalle: 'Inventario oficial ordenado' },
   ];
 
   return (
@@ -403,7 +465,7 @@ function BarraPestanas({
       style={
         lateral
           ? {
-              width: 220,
+              width: 230,
               backgroundColor: color.superficie,
               borderRadius: radio,
               borderWidth: 1,
@@ -414,6 +476,7 @@ function BarraPestanas({
             }
           : {
               flexDirection: 'row',
+              flexWrap: 'wrap',
               backgroundColor: color.superficie,
               borderRadius: radio,
               borderWidth: 1,
@@ -438,8 +501,9 @@ function BarraPestanas({
             onPress={() => onChange(item.id)}
             style={({ pressed }) => ({
               flex: lateral ? undefined : 1,
+              minWidth: lateral ? undefined : 72,
               flexDirection: lateral ? 'row' : 'column',
-              alignItems: lateral ? 'center' : 'center',
+              alignItems: 'center',
               gap: lateral ? 10 : 4,
               paddingVertical: lateral ? 12 : 10,
               paddingHorizontal: 12,
@@ -451,7 +515,9 @@ function BarraPestanas({
           >
             <Ionicons name={item.icono} size={20} color={activa ? color.primario : color.textoSuave} />
             <View style={{ flex: lateral ? 1 : undefined, alignItems: lateral ? 'flex-start' : 'center' }}>
-              <Text style={{ fontWeight: '700', fontSize: 14, color: activa ? color.primario : color.texto }}>{item.titulo}</Text>
+              <Text style={{ fontWeight: '700', fontSize: lateral ? 14 : 12.5, color: activa ? color.primario : color.texto, textAlign: 'center' }}>
+                {item.titulo}
+              </Text>
               {lateral ? <Text style={{ fontSize: 11.5, color: color.textoSuave }}>{item.detalle}</Text> : null}
             </View>
             {lateral && item.id === 'actuaciones' ? (
@@ -497,6 +563,12 @@ function PestanaExpediente({
             ? 'SO/SD, PRECIO AHORRO CAE, fee, gestor y propietario inicial (en actuaciones).'
             : 'SO/SD, PRECIO AHORRO CAE (tu ROI = MWh × ese precio) y certificadora.'}
         </Text>
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+        <Boton titulo="Editar expediente" variante="secundario" icono="create-outline" onPress={onEditar} />
+        <Boton titulo="Duplicar" variante="secundario" icono="copy-outline" onPress={onDuplicar} />
+        <Boton titulo="Eliminar" variante="peligro" icono="trash-outline" onPress={onEliminar} />
       </View>
 
       <Tarjeta>
@@ -550,19 +622,6 @@ function PestanaExpediente({
       <ListaAvisos avisos={r.avisos} />
 
       <Seccion
-        titulo="Contrato de compraventa del CAE"
-        ayuda="Adjunta el contrato de compraventa del CAE de este expediente."
-      >
-        <CampoFoto
-          etiqueta="Contrato de compraventa"
-          ayuda="PDF o imagen del contrato firmado."
-          valor={exp.contratoCompraventa}
-          onChange={(a) => onActualizar({ contratoCompraventa: a })}
-          soloImagenes={false}
-        />
-      </Seccion>
-
-      <Seccion
         titulo="Certificadora del CAE"
         ayuda="Datos y nº de referencia de la certificadora que verifica el CAE."
       >
@@ -586,12 +645,6 @@ function PestanaExpediente({
           multilinea
         />
       </Seccion>
-
-      <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
-        <Boton titulo="Editar expediente" variante="secundario" icono="create-outline" onPress={onEditar} />
-        <Boton titulo="Duplicar" variante="secundario" icono="copy-outline" onPress={onDuplicar} />
-        <Boton titulo="Eliminar" variante="peligro" icono="trash-outline" onPress={onEliminar} />
-      </View>
 
       <Seccion titulo="Sujeto obligado / delegado (comprador)">
         <Fila etiqueta="Tipo" valor={etiquetaTipoSujeto(s.tipo === 'intermediario' ? 'delegado' : s.tipo)} />
@@ -647,6 +700,428 @@ function PestanaExpediente({
         />
         {exp.notas ? <Fila etiqueta="Notas" valor={exp.notas} /> : null}
       </Seccion>
+    </>
+  );
+}
+
+const OPCIONES_BONO = [
+  { valor: 'ninguno' as const, etiqueta: 'Ninguno' },
+  { valor: 'electrico-vulnerable' as const, etiqueta: 'Bono eléctrico vulnerable' },
+  { valor: 'electrico-vulnerable-severo' as const, etiqueta: 'Bono eléctrico vulnerable severo' },
+  { valor: 'electrico-exclusion' as const, etiqueta: 'Bono eléctrico exclusión social' },
+  { valor: 'justicia-energetica' as const, etiqueta: 'Bono justicia energética' },
+  { valor: 'termico' as const, etiqueta: 'Bono social térmico' },
+];
+
+const OPCIONES_AYUDA = [
+  { valor: 'no-solicitado' as const, etiqueta: 'No se ha solicitado ayuda' },
+  { valor: 'solicitado-obtenido' as const, etiqueta: 'Solicitada y obtenida' },
+  { valor: 'solicitado-no-obtenido' as const, etiqueta: 'Solicitada y no obtenida' },
+  { valor: 'solicitado-pendiente' as const, etiqueta: 'Solicitada y pendiente' },
+];
+
+function PestanaDeclaracion({
+  exp,
+  onActualizarActuacion,
+}: {
+  exp: Expediente;
+  onActualizarActuacion: (a: Actuacion, patch: Partial<ActuacionBorrador>) => void;
+}) {
+  const [actuacionId, setActuacionId] = useState(exp.actuaciones[0]?.id ?? '');
+  const act = exp.actuaciones.find((x) => x.id === actuacionId) ?? exp.actuaciones[0];
+
+  if (exp.actuaciones.length === 0) {
+    return (
+      <Tarjeta>
+        <Vacio
+          icono="shield-checkmark-outline"
+          titulo="Sin actuaciones"
+          texto="La declaración responsable (Anexo I) la firma el propietario inicial por cada actuación. Añade una actuación primero."
+        />
+      </Tarjeta>
+    );
+  }
+
+  if (!act) return null;
+
+  const datos = act.declaracionResponsableDatos ?? datosDeclaracionResponsableVacios();
+  const plantilla = textoDeclaracionResponsable(act, datos);
+  const texto = act.declaracionResponsableTexto.trim() ? act.declaracionResponsableTexto : plantilla;
+  const firmante = act.propietarioAhorro.trim() || act.cliente.nombre.trim() || 'Propietario inicial';
+  const pdfFirmado = (act.documentacion.declaracionResponsable ?? []).find((d) => d.contenidoBase64);
+
+  const setDatos = (patch: Partial<DatosDeclaracionResponsable>, regenerar = true) => {
+    const siguientes = { ...datos, ...patch };
+    onActualizarActuacion(act, {
+      declaracionResponsableDatos: siguientes,
+      declaracionResponsableTexto: regenerar ? textoDeclaracionResponsable(act, siguientes) : act.declaracionResponsableTexto,
+      declaracionResponsableFirmada: false,
+    });
+  };
+
+  const regenerarPlantilla = () => {
+    onActualizarActuacion(act, {
+      declaracionResponsableTexto: textoDeclaracionResponsable(act, datos),
+      declaracionResponsableFirmada: false,
+    });
+  };
+
+  const firmarYGenerarPdf = () => {
+    if (!act.firmaDeclaracionResponsable) return;
+    const pdf = generarPdfTextoFirmado(
+      texto,
+      firmante,
+      `anexo-i-declaracion-responsable-${(act.etiqueta || act.id).replace(/\s+/g, '_').slice(0, 40)}.pdf`,
+    );
+    const previos = (act.documentacion.declaracionResponsable ?? []).filter(
+      (d) => !d.nombre.startsWith('anexo-i-declaracion-responsable'),
+    );
+    onActualizarActuacion(act, {
+      declaracionResponsableTexto: texto,
+      declaracionResponsableFirmada: true,
+      documentacion: {
+        ...act.documentacion,
+        declaracionResponsable: [pdf, ...previos],
+      },
+    });
+  };
+
+  return (
+    <>
+      <View style={{ backgroundColor: color.okSuave, borderRadius: radio, padding: 12, borderWidth: 1, borderColor: '#86EFAC' }}>
+        <Text style={{ color: color.ok, fontWeight: '700', fontSize: 13 }}>Declaración responsable (Anexo I)</Text>
+        <Text style={{ color: color.textoSuave, fontSize: 12.5, marginTop: 2 }}>
+          El propietario inicial firma una declaración por cada actuación sobre ayudas o subvenciones públicas para la misma actuación.
+        </Text>
+      </View>
+
+      <Seccion titulo="Actuación" ayuda="Selecciona la actuación cuyo Anexo I vas a cumplimentar y firmar.">
+        <Selector
+          etiqueta="Actuación del expediente"
+          opciones={exp.actuaciones.map((a) => ({
+            valor: a.id,
+            etiqueta: `${a.etiqueta || 'Sin etiqueta'}${a.declaracionResponsableFirmada ? ' · firmada' : ''}`,
+          }))}
+          valor={act.id}
+          onChange={(id) => {
+            if (id) setActuacionId(id);
+          }}
+        />
+        <Fila etiqueta="Propietario inicial" valor={firmante} />
+        <Fila etiqueta="NIF/NIE" valor={act.cliente.nifNie || '—'} />
+        <Fila
+          etiqueta="Estado Anexo I"
+          valor={act.declaracionResponsableFirmada ? 'Firmado en la app' : 'Pendiente de firma'}
+        />
+      </Seccion>
+
+      <Seccion titulo="Datos del Anexo I" ayuda="Se precargan en el texto. Cámbialos y recarga la plantilla si hace falta.">
+        <CampoTexto
+          etiqueta="Comunidad autónoma"
+          valor={datos.comunidadAutonoma}
+          onChange={(v) => setDatos({ comunidadAutonoma: v })}
+          placeholder={act.provincia || 'Comunidad autónoma'}
+        />
+        <CampoTexto
+          etiqueta="Nº de serie de equipos (opcional)"
+          valor={datos.numerosSerie}
+          onChange={(v) => setDatos({ numerosSerie: v })}
+          placeholder="Se rellena con códigos de ventanas si está vacío"
+        />
+        <CampoTexto
+          etiqueta="Lugar de firma"
+          valor={datos.lugarFirma}
+          onChange={(v) => setDatos({ lugarFirma: v })}
+          placeholder={act.municipio || 'Municipio'}
+        />
+        <Interruptor
+          etiqueta="Beneficiario distinto del propietario inicial"
+          valor={datos.beneficiarioDistinto}
+          onChange={(v) => setDatos({ beneficiarioDistinto: v })}
+        />
+        {datos.beneficiarioDistinto ? (
+          <>
+            <CampoTexto etiqueta="Beneficiario (nombre)" valor={datos.beneficiarioNombre} onChange={(v) => setDatos({ beneficiarioNombre: v })} />
+            <CampoTexto etiqueta="Beneficiario NIF/NIE" valor={datos.beneficiarioNif} onChange={(v) => setDatos({ beneficiarioNif: v.toUpperCase() })} mayusculas />
+            <CampoTexto etiqueta="Beneficiario domicilio" valor={datos.beneficiarioDomicilio} onChange={(v) => setDatos({ beneficiarioDomicilio: v })} />
+            <CampoTexto etiqueta="Beneficiario teléfono" valor={datos.beneficiarioTelefono} onChange={(v) => setDatos({ beneficiarioTelefono: v })} teclado="phone-pad" />
+            <CampoTexto etiqueta="Beneficiario email" valor={datos.beneficiarioEmail} onChange={(v) => setDatos({ beneficiarioEmail: v })} teclado="email-address" />
+          </>
+        ) : null}
+        <Selector
+          etiqueta="Bono social"
+          opciones={OPCIONES_BONO}
+          valor={datos.bonoSocial}
+          onChange={(v) => setDatos({ bonoSocial: v ?? 'ninguno' })}
+        />
+        <Selector
+          etiqueta="Ayudas / subvenciones para la misma actuación"
+          opciones={OPCIONES_AYUDA}
+          valor={datos.situacionAyuda}
+          onChange={(v) => setDatos({ situacionAyuda: v ?? 'no-solicitado' })}
+        />
+        {datos.situacionAyuda !== 'no-solicitado' ? (
+          <>
+            <CampoTexto etiqueta="Denominación del programa" valor={datos.ayudaDenominacion} onChange={(v) => setDatos({ ayudaDenominacion: v })} />
+            <CampoTexto etiqueta="Entidad u órgano gestor" valor={datos.ayudaEntidad} onChange={(v) => setDatos({ ayudaEntidad: v })} />
+            <CampoTexto etiqueta="Año" valor={datos.ayudaAnio} onChange={(v) => setDatos({ ayudaAnio: v })} />
+            <CampoTexto etiqueta="Nº de expediente de la ayuda" valor={datos.ayudaNumeroExpediente} onChange={(v) => setDatos({ ayudaNumeroExpediente: v })} />
+            <CampoTexto etiqueta="Cuantía obtenida o esperada" valor={datos.ayudaCuantia} onChange={(v) => setDatos({ ayudaCuantia: v })} />
+          </>
+        ) : null}
+      </Seccion>
+
+      <Seccion titulo="Texto de la declaración" ayuda="Cuerpo del Anexo I editable. Los campos automáticos salen de la actuación y del formulario de arriba.">
+        <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+          <Boton titulo="Recargar plantilla" variante="secundario" icono="refresh-outline" onPress={regenerarPlantilla} />
+        </View>
+        <TextInput
+          accessibilityLabel="Texto declaración responsable Anexo I"
+          value={texto}
+          onChangeText={(v) =>
+            onActualizarActuacion(act, { declaracionResponsableTexto: v, declaracionResponsableFirmada: false })
+          }
+          multiline
+          textAlignVertical="top"
+          style={{
+            minHeight: 360,
+            borderWidth: 1,
+            borderColor: color.borde,
+            borderRadius: 10,
+            padding: 12,
+            fontFamily: 'monospace',
+            fontSize: 12.5,
+            lineHeight: 18,
+            color: color.texto,
+            backgroundColor: '#fff',
+          }}
+        />
+      </Seccion>
+
+      <Seccion titulo="Firma del propietario inicial" ayuda="Firma táctil. Al firmar se genera el PDF del Anexo I y se guarda en la documentación de la actuación.">
+        <ZonaFirma
+          valor={act.firmaDeclaracionResponsable}
+          onChange={(firma) =>
+            onActualizarActuacion(act, {
+              firmaDeclaracionResponsable: firma,
+              declaracionResponsableFirmada: false,
+            })
+          }
+        />
+        <Interruptor
+          etiqueta="Declaración firmada en la app"
+          valor={act.declaracionResponsableFirmada}
+          onChange={(v) => onActualizarActuacion(act, { declaracionResponsableFirmada: v })}
+        />
+        {!act.firmaDeclaracionResponsable ? (
+          <Nota tono="aviso" texto="El propietario inicial (o su representante) debe firmar en el recuadro antes de generar el PDF." />
+        ) : null}
+        <Boton
+          titulo="Firmar y generar PDF Anexo I"
+          icono="document-attach-outline"
+          onPress={firmarYGenerarPdf}
+          deshabilitado={!act.firmaDeclaracionResponsable}
+        />
+      </Seccion>
+
+      <Seccion titulo="PDF firmado" ayuda="También aparece en Documentación oficial del expediente.">
+        {pdfFirmado ? (
+          <>
+            <Fila etiqueta="Archivo" valor={pdfFirmado.nombre} />
+            <Boton titulo="Descargar PDF" icono="download-outline" onPress={() => descargarAdjunto(pdfFirmado)} />
+          </>
+        ) : (
+          <Vacio icono="document-outline" titulo="Sin PDF firmado" texto="Firma y genera el Anexo I para esta actuación." />
+        )}
+      </Seccion>
+    </>
+  );
+}
+
+function PestanaContrato({
+  exp,
+  r,
+  usuario,
+  onActualizar,
+}: {
+  exp: Expediente;
+  r: ResultadoExpediente;
+  usuario: UsuarioPerfil;
+  onActualizar: (patch: Partial<Expediente>) => void;
+}) {
+  const plantilla = textoContratoCompraventa(exp, usuario, r.energiaMWhAnio);
+  const texto = exp.contratoCompraventaTexto.trim() ? exp.contratoCompraventaTexto : plantilla;
+  const firmante =
+    usuario.nombre.trim() ||
+    usuario.sociedad.trim() ||
+    exp.actuaciones[0]?.propietarioAhorro ||
+    exp.actuaciones[0]?.cliente.nombre ||
+    'Firmante';
+
+  const regenerarPlantilla = () => {
+    onActualizar({
+      contratoCompraventaTexto: plantilla,
+      contratoCompraventaFirmado: false,
+      contratoCompraventa: undefined,
+    });
+  };
+
+  const firmarYGenerarPdf = () => {
+    if (!exp.firmaContratoCompraventa) {
+      onActualizar({ contratoCompraventaTexto: texto });
+      return;
+    }
+    const pdf = generarPdfContratoFirmado(texto, firmante);
+    onActualizar({
+      contratoCompraventaTexto: texto,
+      contratoCompraventa: pdf,
+      contratoCompraventaFirmado: true,
+    });
+  };
+
+  return (
+    <>
+      <View style={{ backgroundColor: '#EEF4FF', borderRadius: radio, padding: 12, borderWidth: 1, borderColor: '#B7D0EA' }}>
+        <Text style={{ color: color.primario, fontWeight: '700', fontSize: 13 }}>Pestaña Contrato de compraventa CAE</Text>
+        <Text style={{ color: color.textoSuave, fontSize: 12.5, marginTop: 2 }}>
+          El cuerpo se precarga con propietario, intermediario, SO/SD, PRECIO AHORRO CAE y MWh. Revisa el texto, firma y genera el PDF.
+        </Text>
+      </View>
+
+      <Seccion
+        titulo="Cuerpo del contrato"
+        ayuda="Solo edita si hace falta; los campos automáticos salen del expediente y del perfil de usuario."
+      >
+        <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+          <Boton titulo="Recargar plantilla" variante="secundario" icono="refresh-outline" onPress={regenerarPlantilla} />
+        </View>
+        <TextInput
+          accessibilityLabel="Cuerpo del contrato de compraventa"
+          value={texto}
+          onChangeText={(v) => onActualizar({ contratoCompraventaTexto: v, contratoCompraventaFirmado: false })}
+          multiline
+          textAlignVertical="top"
+          style={{
+            minHeight: 320,
+            borderWidth: 1,
+            borderColor: color.borde,
+            borderRadius: 10,
+            padding: 12,
+            fontFamily: 'monospace',
+            fontSize: 12.5,
+            lineHeight: 18,
+            color: color.texto,
+            backgroundColor: '#fff',
+          }}
+        />
+      </Seccion>
+
+      <Seccion titulo="Firma" ayuda="Firma táctil optimizada para móvil. Al firmar se genera el PDF del contrato.">
+        <ZonaFirma
+          valor={exp.firmaContratoCompraventa}
+          onChange={(a) =>
+            onActualizar({
+              firmaContratoCompraventa: a,
+              contratoCompraventaFirmado: false,
+              contratoCompraventa: a ? exp.contratoCompraventa : undefined,
+            })
+          }
+        />
+        <Interruptor
+          etiqueta="Contrato firmado en la app"
+          ayuda="Se activa al generar el PDF firmado. También puedes marcarlo manualmente si ya firmaste."
+          valor={exp.contratoCompraventaFirmado}
+          onChange={(v) => onActualizar({ contratoCompraventaFirmado: v })}
+        />
+        {!exp.firmaContratoCompraventa ? (
+          <Nota tono="aviso" texto="Dibuja la firma en el recuadro antes de generar el PDF firmado." />
+        ) : null}
+        <Boton
+          titulo="Firmar y generar PDF"
+          icono="document-attach-outline"
+          onPress={firmarYGenerarPdf}
+          deshabilitado={!exp.firmaContratoCompraventa}
+        />
+      </Seccion>
+
+      <Seccion titulo="PDF firmado" ayuda="Se guarda en el expediente y aparece en Documentación oficial.">
+        {exp.contratoCompraventa ? (
+          <>
+            <Fila etiqueta="Archivo" valor={exp.contratoCompraventa.nombre} />
+            <Fila
+              etiqueta="Tamaño"
+              valor={`${formatoNumero(exp.contratoCompraventa.tamanoBytes / 1024, 1)} KB · ${new Date(exp.contratoCompraventa.subidoEn).toLocaleString('es-ES')}`}
+            />
+            <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+              <Boton titulo="Descargar PDF" icono="download-outline" onPress={() => descargarAdjunto(exp.contratoCompraventa!)} />
+              <Boton
+                titulo="Quitar PDF"
+                variante="secundario"
+                icono="trash-outline"
+                onPress={() => onActualizar({ contratoCompraventa: undefined, contratoCompraventaFirmado: false })}
+              />
+            </View>
+          </>
+        ) : (
+          <Vacio icono="document-outline" titulo="Sin PDF firmado" texto="Firma el contrato y pulsa “Firmar y generar PDF”." />
+        )}
+      </Seccion>
+    </>
+  );
+}
+
+function PestanaDocumentacion({ exp }: { exp: Expediente }) {
+  const grupos = useMemo(() => agruparDocumentacion(inventariarDocumentacion(exp)), [exp]);
+  const total = grupos.reduce((n, g) => n + g.items.length, 0);
+
+  return (
+    <>
+      <View style={{ backgroundColor: color.fondo, borderRadius: radio, padding: 12, borderWidth: 1, borderColor: color.borde }}>
+        <Text style={{ color: color.primario, fontWeight: '700', fontSize: 13 }}>Documentación oficial del expediente</Text>
+        <Text style={{ color: color.textoSuave, fontSize: 12.5, marginTop: 2 }}>
+          Inventario ordenado de contratos, verificación, docs de actuaciones y evidencias fotográficas ({total} archivo{total === 1 ? '' : 's'}).
+        </Text>
+      </View>
+
+      {total === 0 ? (
+        <Tarjeta>
+          <Vacio
+            icono="folder-open-outline"
+            titulo="Sin documentación todavía"
+            texto="Los archivos que subas en actuaciones, ventanas o el contrato firmado aparecerán aquí agrupados."
+          />
+        </Tarjeta>
+      ) : (
+        grupos.map((g) =>
+          g.items.length === 0 ? null : (
+            <Seccion key={g.grupo} titulo={g.etiqueta} ayuda={`${g.items.length} documento${g.items.length === 1 ? '' : 's'}`}>
+              {g.items.map((it) => (
+                <View
+                  key={it.id}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: color.borde,
+                    borderRadius: 10,
+                    padding: 12,
+                    gap: 6,
+                    backgroundColor: color.fondo,
+                    marginBottom: 8,
+                  }}
+                >
+                  <Text style={{ fontWeight: '700', color: color.texto }}>{it.titulo}</Text>
+                  <Text style={{ color: color.textoSuave, fontSize: 12.5 }}>Origen: {it.origen}</Text>
+                  <Fila etiqueta="Archivo" valor={it.adjunto.nombre} />
+                  <Fila
+                    etiqueta="Detalle"
+                    valor={`${it.adjunto.mime} · ${formatoNumero(it.adjunto.tamanoBytes / 1024, 1)} KB`}
+                  />
+                  <Boton titulo="Descargar" variante="secundario" icono="download-outline" onPress={() => descargarAdjunto(it.adjunto)} />
+                </View>
+              ))}
+            </Seccion>
+          ),
+        )
+      )}
     </>
   );
 }

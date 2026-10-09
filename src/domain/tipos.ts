@@ -175,8 +175,14 @@ export interface Expediente {
   contratoDefinitivo?: Adjunto;
   /** Informe técnico aportado al marcar como verificado. */
   informeTecnico?: Adjunto;
-  /** Contrato de compraventa del CAE (nivel expediente). */
+  /** Contrato de compraventa del CAE (PDF firmado u original adjunto). */
   contratoCompraventa?: Adjunto;
+  /** Texto editable del cuerpo del contrato de compraventa (plantilla precargada). */
+  contratoCompraventaTexto: string;
+  /** Firma electrónica capturada (imagen PNG en base64). */
+  firmaContratoCompraventa?: Adjunto;
+  /** Marca de aceptación/firma del contrato de compraventa en la app. */
+  contratoCompraventaFirmado: boolean;
   /** Nombre / razón social de la certificadora que verifica el CAE. */
   certificadoraNombre: string;
   /** Nº de referencia del expediente en la certificadora. */
@@ -187,6 +193,52 @@ export interface Expediente {
   actuaciones: Actuacion[];
   creadoEn: string;
   actualizadoEn: string;
+}
+
+export type SituacionAyudaDeclaracion =
+  | 'no-solicitado'
+  | 'solicitado-obtenido'
+  | 'solicitado-no-obtenido'
+  | 'solicitado-pendiente';
+
+export type BonoSocialDeclaracion =
+  | 'electrico-vulnerable'
+  | 'electrico-vulnerable-severo'
+  | 'electrico-exclusion'
+  | 'justicia-energetica'
+  | 'termico'
+  | 'ninguno';
+
+/** Datos del Anexo I (declaración responsable) precargables / editables por actuación. */
+export interface DatosDeclaracionResponsable {
+  comunidadAutonoma: string;
+  numerosSerie: string;
+  beneficiarioDistinto: boolean;
+  beneficiarioNombre: string;
+  beneficiarioNif: string;
+  beneficiarioDomicilio: string;
+  beneficiarioTelefono: string;
+  beneficiarioEmail: string;
+  tieneRepresentante: boolean;
+  representanteNombre: string;
+  representanteNif: string;
+  representanteDomicilio: string;
+  representanteTelefono: string;
+  representanteEmail: string;
+  poderTipo: '' | 'notarial' | 'otro';
+  poderDetalle: string;
+  bonoSocial: BonoSocialDeclaracion;
+  situacionAyuda: SituacionAyudaDeclaracion;
+  ayudaDenominacion: string;
+  ayudaEntidad: string;
+  ayudaAnio: string;
+  ayudaDisposicion: string;
+  ayudaNumeroExpediente: string;
+  ayudaEstado: string;
+  ayudaFechaSolicitud: string;
+  ayudaFechaResolucion: string;
+  ayudaCuantia: string;
+  lugarFirma: string;
 }
 
 /**
@@ -225,6 +277,14 @@ export interface Actuacion {
   fechaInicio: string;
   fechaFin: string;
   documentacion: DocumentacionActuacion;
+  /** Campos estructurados del Anexo I (declaración responsable). */
+  declaracionResponsableDatos: DatosDeclaracionResponsable;
+  /** Texto editable del Anexo I precargado con datos de la actuación. */
+  declaracionResponsableTexto: string;
+  /** Firma táctil del propietario inicial (o representante) sobre el Anexo I. */
+  firmaDeclaracionResponsable?: Adjunto;
+  /** Marca de que el Anexo I de esta actuación está firmado en la app. */
+  declaracionResponsableFirmada: boolean;
   notas: string;
   ventanas: Ventana[];
   creadoEn: string;
@@ -258,6 +318,10 @@ export interface Ventana {
   };
   nueva: {
     descripcion: string;
+    /** Modelo comercial / referencia de catálogo de la ventana instalada. */
+    modelo: string;
+    /** Número de serie del hueco instalado (trazabilidad DoP / marcado CE). */
+    numeroSerie: string;
     /** Uhf (W/m²·K). */
     transmitancia?: number;
     materialMarco: MaterialMarco;

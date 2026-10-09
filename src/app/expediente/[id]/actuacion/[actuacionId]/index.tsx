@@ -125,6 +125,13 @@ export default function DetalleActuacion() {
                           .filter(Boolean)
                           .join(' · ') || 'Sin ubicación'}
                       </Text>
+                      {v.nueva.modelo || v.nueva.numeroSerie ? (
+                        <Text style={{ color: color.textoSuave, fontSize: 12 }}>
+                          {[v.nueva.modelo && `Modelo ${v.nueva.modelo}`, v.nueva.numeroSerie && `S/N ${v.nueva.numeroSerie}`]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </Text>
+                      ) : null}
                       <Text style={{ color: color.textoSuave, fontSize: 11.5 }}>ID {v.id}</Text>
                     </View>
                     <BotonIcono icono="create-outline" etiqueta={`Editar ${v.etiqueta}`} onPress={() => router.push(`/expediente/${exp.id}/actuacion/${act.id}/ventana/${v.id}`)} />

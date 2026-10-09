@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { esIntermediarioInstalador, type ExpedienteBorrador, type RolUsuario } from '@/domain/tipos';
 import { Boton, CampoNumero, CampoTexto, Insignia, Nota, Pantalla, Selector, Seccion } from './componentes';
-import { CampoFoto } from './DocumentosActuacion';
 import { etiquetaEstado, tonoEstado } from './estado';
 import { color } from './tema';
 
@@ -197,16 +196,6 @@ export function FormularioExpediente({
         ) : (
           <Nota tono="ok" texto="Como propietario inicial tu ROI = MWh/año × PRECIO AHORRO CAE. No aplica fee de intermediario." />
         )}
-      </Seccion>
-
-      <Seccion titulo="Contrato de compraventa del CAE" ayuda="Adjunta el contrato de compraventa del CAE de este expediente.">
-        <CampoFoto
-          etiqueta="Contrato de compraventa"
-          ayuda="PDF o imagen del contrato firmado."
-          valor={d.contratoCompraventa}
-          onChange={(a) => setD((x) => ({ ...x, contratoCompraventa: a }))}
-          soloImagenes={false}
-        />
       </Seccion>
 
       <Seccion titulo="Certificadora del CAE" ayuda="Datos y nº de referencia de la certificadora que verifica el CAE.">

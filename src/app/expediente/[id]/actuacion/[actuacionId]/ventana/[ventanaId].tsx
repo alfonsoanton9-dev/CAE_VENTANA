@@ -143,13 +143,32 @@ function Editor({
         />
       </Seccion>
 
-      <Seccion titulo="Situación nueva">
+      <Seccion
+        titulo="Situación nueva"
+        ayuda="Identifica el producto instalado (modelo y nº de serie) para trazabilidad con la declaración de prestaciones y el marcado CE."
+      >
         <CampoTexto
           etiqueta="Descripción de la ventana nueva"
           valor={v.nueva.descripcion}
           onChange={(x) => setNueva('descripcion', x)}
           placeholder="Ej. PVC 5 cámaras, doble acristalamiento bajo emisivo"
         />
+        <View style={fila}>
+          <CampoTexto
+            etiqueta="Modelo"
+            valor={v.nueva.modelo}
+            onChange={(x) => setNueva('modelo', x)}
+            placeholder="Ej. ThermoStyle 70"
+            ayuda="Referencia comercial o de catálogo del fabricante."
+          />
+          <CampoTexto
+            etiqueta="Número de serie"
+            valor={v.nueva.numeroSerie}
+            onChange={(x) => setNueva('numeroSerie', x)}
+            placeholder="Ej. TS70-2025-000184"
+            ayuda="Serie del hueco instalado. Si hay varias unidades idénticas, puedes listarlas separadas."
+          />
+        </View>
         <CampoNumero
           etiqueta="Transmitancia nueva Uhf"
           unidad="W/m²·K"
